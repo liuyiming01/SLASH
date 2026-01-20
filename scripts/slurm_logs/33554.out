@@ -1,0 +1,18 @@
+[run_select] (GraphWiz) model=LLaMA2-7B-DPO -> ../outputs/select3.1/LLaMA2-7B-DPO
+Loading model from /home/lym/data1/LLM-model/GraphWiz/LLaMA2-7B-DPO ...
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [116, 151], used_preferred_min=True, mode=median_center_window
+[cycle] Cache hit: ../outputs/select3.1/LLaMA2-7B-DPO/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.npz (skip entropy compute)
+[cycle] Middle-peak selection info: {'mode': 'fallback_top_fraction', 'threshold': 0.23548731532061515, 'k': 13}
+[cycle] Done.
+Filtered samples count: 400
+[connectivity] TRUE edge stats: min=1, max=142, median=50.0, n=400
+[connectivity] CHOSEN edge range: [74, 94], used_preferred_min=True, mode=median_center_window
+[connectivity] Cached entropy saved to ../outputs/select3.1/LLaMA2-7B-DPO/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.npz
+[connectivity] Cache meta saved to ../outputs/select3.1/LLaMA2-7B-DPO/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.meta.json
+[connectivity] Middle-peak selection info: {'mode': 'fallback_top_fraction', 'threshold': 0.19232061336596562, 'k': 13}
+[connectivity] Done.
+Filtered samples count: 400
+[hamilton] TRUE edge stats: min=4, max=383, median=169.0, n=400
+[hamilton] CHOSEN edge range: [191, 239], used_preferred_min=True, mode=median_center_window

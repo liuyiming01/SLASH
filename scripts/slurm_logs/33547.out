@@ -1,0 +1,71 @@
+[run_select] (GraphWiz) model=Meta-Llama-3.1-8B-Instruct -> ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [116, 151], used_preferred_min=True, mode=median_center_window
+[cycle] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.npz
+[cycle] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.meta.json
+[cycle] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.08724260887715697, 'relative_height': 0.8, 'num_selected_layers': 13}
+[cycle] Done.
+Filtered samples count: 400
+[connectivity] TRUE edge stats: min=1, max=142, median=50.0, n=400
+[connectivity] CHOSEN edge range: [74, 94], used_preferred_min=True, mode=median_center_window
+[connectivity] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.npz
+[connectivity] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.meta.json
+[connectivity] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06954321585296888, 'relative_height': 0.8, 'num_selected_layers': 13}
+[connectivity] Done.
+Filtered samples count: 400
+[hamilton] TRUE edge stats: min=4, max=383, median=169.0, n=400
+[hamilton] CHOSEN edge range: [191, 239], used_preferred_min=True, mode=median_center_window
+[hamilton] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.npz
+[hamilton] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.meta.json
+[hamilton] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.10980427430259088, 'relative_height': 0.8, 'num_selected_layers': 13}
+[hamilton] Done.
+Filtered samples count: 400
+[substructure] TRUE edge stats: min=4, max=224, median=40.5, n=400
+[substructure] CHOSEN edge range: [89, 122], used_preferred_min=True, mode=median_center_window
+[substructure] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/substructure_entropy_per_layer_alpha1.0/substructure_entropy_per_layer.npz
+[substructure] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/substructure_entropy_per_layer_alpha1.0/substructure_entropy_per_layer.meta.json
+[substructure] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06277552028003902, 'relative_height': 0.8, 'num_selected_layers': 13}
+[substructure] Done.
+Filtered samples count: 400
+[bipartite] TRUE edge stats: min=1, max=364, median=188.0, n=400
+[bipartite] CHOSEN edge range: [236, 282], used_preferred_min=True, mode=median_center_window
+[bipartite] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/bipartite_entropy_per_layer_alpha1.0/bipartite_entropy_per_layer.npz
+[bipartite] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/bipartite_entropy_per_layer_alpha1.0/bipartite_entropy_per_layer.meta.json
+[bipartite] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.08211567338587049, 'relative_height': 0.8, 'num_selected_layers': 13}
+[bipartite] Done.
+Filtered samples count: 400
+[flow] TRUE edge stats: min=2, max=147, median=35.0, n=400
+[flow] CHOSEN edge range: [77, 101], used_preferred_min=True, mode=median_center_window
+[flow] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/flow_entropy_per_layer_alpha1.0/flow_entropy_per_layer.npz
+[flow] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/flow_entropy_per_layer_alpha1.0/flow_entropy_per_layer.meta.json
+[flow] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.07473280420624305, 'relative_height': 0.8, 'num_selected_layers': 13}
+[flow] Done.
+Filtered samples count: 400
+[shortest] TRUE edge stats: min=3, max=217, median=111.0, n=400
+[shortest] CHOSEN edge range: [126, 150], used_preferred_min=True, mode=median_center_window
+[shortest] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/shortest_entropy_per_layer_alpha1.0/shortest_entropy_per_layer.npz
+[shortest] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/shortest_entropy_per_layer_alpha1.0/shortest_entropy_per_layer.meta.json
+[shortest] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.1088276336980935, 'relative_height': 0.8, 'num_selected_layers': 13}
+[shortest] Done.
+Filtered samples count: 400
+[topology] TRUE edge stats: min=3, max=361, median=176.0, n=400
+[topology] CHOSEN edge range: [222, 256], used_preferred_min=True, mode=median_center_window
+[topology] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/topology_entropy_per_layer_alpha1.0/topology_entropy_per_layer.npz
+[topology] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/topology_entropy_per_layer_alpha1.0/topology_entropy_per_layer.meta.json
+[topology] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.08045621058139318, 'relative_height': 0.8, 'num_selected_layers': 13}
+[topology] Done.
+Filtered samples count: 400
+[triangle] TRUE edge stats: min=3, max=53, median=11.5, n=400
+[triangle] CHOSEN edge range: [33, 53], used_preferred_min=False, mode=top_edges_threshold_fallback
+[triangle] Cached entropy saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/triangle_entropy_per_layer_alpha1.0/triangle_entropy_per_layer.npz
+[triangle] Cache meta saved to ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct/entropy_results/triangle_entropy_per_layer_alpha1.0/triangle_entropy_per_layer.meta.json
+[triangle] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.062136721047790444, 'relative_height': 0.8, 'num_selected_layers': 13}
+[triangle] Done.
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+
+>>> Processing Task: cycle
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [116, 151], used_preferred_min=True, after_cap_n=400, eligible_pref_n=197, mode=median_center_window

@@ -1,0 +1,195 @@
+[run_select] (GraphWiz) model=Meta-Llama-3.1-8B-Instruct -> ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [89, 122], used_preferred_min=True, mode=median_center_window
+[cycle] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.npz
+[cycle] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.meta.json
+[cycle] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.07844581914009675, 'relative_height': 0.8, 'num_selected_layers': 13}
+[cycle] Done.
+Filtered samples count: 400
+[connectivity] TRUE edge stats: min=1, max=142, median=50.0, n=400
+[connectivity] CHOSEN edge range: [74, 94], used_preferred_min=True, mode=median_center_window
+[connectivity] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.npz
+[connectivity] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.meta.json
+[connectivity] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06954321602721567, 'relative_height': 0.8, 'num_selected_layers': 13}
+[connectivity] Done.
+Filtered samples count: 400
+[hamilton] TRUE edge stats: min=4, max=383, median=169.0, n=400
+[hamilton] CHOSEN edge range: [73, 129], used_preferred_min=True, mode=median_center_window
+[hamilton] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.npz
+[hamilton] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.meta.json
+[hamilton] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.07654062546523858, 'relative_height': 0.8, 'num_selected_layers': 13}
+[hamilton] Done.
+Filtered samples count: 400
+[substructure] TRUE edge stats: min=4, max=224, median=40.5, n=400
+[substructure] CHOSEN edge range: [81, 111], used_preferred_min=True, mode=median_center_window
+[substructure] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/substructure_entropy_per_layer_alpha1.0/substructure_entropy_per_layer.npz
+[substructure] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/substructure_entropy_per_layer_alpha1.0/substructure_entropy_per_layer.meta.json
+[substructure] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.060630603492507554, 'relative_height': 0.8, 'num_selected_layers': 13}
+[substructure] Done.
+Filtered samples count: 400
+[bipartite] TRUE edge stats: min=1, max=364, median=188.0, n=400
+[bipartite] CHOSEN edge range: [68, 134], used_preferred_min=True, mode=median_center_window
+[bipartite] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/bipartite_entropy_per_layer_alpha1.0/bipartite_entropy_per_layer.npz
+[bipartite] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/bipartite_entropy_per_layer_alpha1.0/bipartite_entropy_per_layer.meta.json
+[bipartite] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.05518550873416592, 'relative_height': 0.8, 'num_selected_layers': 13}
+[bipartite] Done.
+Filtered samples count: 400
+[flow] TRUE edge stats: min=2, max=147, median=35.0, n=400
+[flow] CHOSEN edge range: [77, 101], used_preferred_min=True, mode=median_center_window
+[flow] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/flow_entropy_per_layer_alpha1.0/flow_entropy_per_layer.npz
+[flow] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/flow_entropy_per_layer_alpha1.0/flow_entropy_per_layer.meta.json
+[flow] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.07473281031848399, 'relative_height': 0.8, 'num_selected_layers': 13}
+[flow] Done.
+Filtered samples count: 400
+[shortest] TRUE edge stats: min=3, max=217, median=111.0, n=400
+[shortest] CHOSEN edge range: [94, 122], used_preferred_min=True, mode=median_center_window
+[shortest] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/shortest_entropy_per_layer_alpha1.0/shortest_entropy_per_layer.npz
+[shortest] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/shortest_entropy_per_layer_alpha1.0/shortest_entropy_per_layer.meta.json
+[shortest] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.096369069988894, 'relative_height': 0.8, 'num_selected_layers': 13}
+[shortest] Done.
+Filtered samples count: 400
+[topology] TRUE edge stats: min=3, max=361, median=176.0, n=400
+[topology] CHOSEN edge range: [62, 143], used_preferred_min=True, mode=median_center_window
+[topology] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/topology_entropy_per_layer_alpha1.0/topology_entropy_per_layer.npz
+[topology] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/topology_entropy_per_layer_alpha1.0/topology_entropy_per_layer.meta.json
+[topology] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.0583365487808895, 'relative_height': 0.8, 'num_selected_layers': 13}
+[topology] Done.
+Filtered samples count: 400
+[triangle] TRUE edge stats: min=3, max=53, median=11.5, n=400
+[triangle] CHOSEN edge range: [33, 53], used_preferred_min=False, mode=top_edges_threshold_fallback
+[triangle] Cached entropy saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/triangle_entropy_per_layer_alpha1.0/triangle_entropy_per_layer.npz
+[triangle] Cache meta saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/triangle_entropy_per_layer_alpha1.0/triangle_entropy_per_layer.meta.json
+[triangle] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06213672104040554, 'relative_height': 0.8, 'num_selected_layers': 13}
+[triangle] Done.
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+
+>>> Processing Task: cycle
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [89, 122], used_preferred_min=True, after_cap_n=325, eligible_pref_n=122, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/cycle_perlayer_lineplot.png
+
+>>> Processing Task: connectivity
+Filtered samples count: 400
+[connectivity] TRUE edge stats: min=1, max=142, median=50.0, n=400
+[connectivity] CHOSEN edge range: [74, 94], used_preferred_min=True, after_cap_n=400, eligible_pref_n=158, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/connectivity_perlayer_lineplot.png
+
+>>> Processing Task: hamilton
+Filtered samples count: 400
+[hamilton] TRUE edge stats: min=4, max=383, median=169.0, n=400
+[hamilton] CHOSEN edge range: [73, 129], used_preferred_min=True, after_cap_n=195, eligible_pref_n=82, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/hamilton_perlayer_lineplot.png
+
+>>> Processing Task: substructure
+Filtered samples count: 400
+[substructure] TRUE edge stats: min=4, max=224, median=40.5, n=400
+[substructure] CHOSEN edge range: [81, 111], used_preferred_min=True, after_cap_n=367, eligible_pref_n=128, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/substructure_perlayer_lineplot.png
+
+>>> Processing Task: bipartite
+Filtered samples count: 400
+[bipartite] TRUE edge stats: min=1, max=364, median=188.0, n=400
+[bipartite] CHOSEN edge range: [68, 134], used_preferred_min=True, after_cap_n=175, eligible_pref_n=66, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/bipartite_perlayer_lineplot.png
+
+>>> Processing Task: flow
+Filtered samples count: 400
+[flow] TRUE edge stats: min=2, max=147, median=35.0, n=400
+[flow] CHOSEN edge range: [77, 101], used_preferred_min=True, after_cap_n=400, eligible_pref_n=127, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/flow_perlayer_lineplot.png
+
+>>> Processing Task: shortest
+Filtered samples count: 400
+[shortest] TRUE edge stats: min=3, max=217, median=111.0, n=400
+[shortest] CHOSEN edge range: [94, 122], used_preferred_min=True, after_cap_n=283, eligible_pref_n=167, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/shortest_perlayer_lineplot.png
+
+>>> Processing Task: topology
+Filtered samples count: 400
+[topology] TRUE edge stats: min=3, max=361, median=176.0, n=400
+[topology] CHOSEN edge range: [62, 143], used_preferred_min=True, after_cap_n=173, eligible_pref_n=59, mode=median_center_window
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/topology_perlayer_lineplot.png
+
+>>> Processing Task: triangle
+Filtered samples count: 400
+[triangle] TRUE edge stats: min=3, max=53, median=11.5, n=400
+[triangle] CHOSEN edge range: [33, 53], used_preferred_min=False, after_cap_n=400, eligible_pref_n=0, mode=top_edges_threshold_fallback
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/triangle_perlayer_lineplot.png
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_cycle_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_connectivity_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_hamilton_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_substructure_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_bipartite_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_flow_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_shortest_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_topology_per_layer_intersection.json
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/GraphWiz_triangle_per_layer_intersection.json
+[run_select] (Graph-SST) model=Meta-Llama-3.1-8B-Instruct -> ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+[Graph-SST2] TRUE edge stats: min=1, max=55, median=18.0, n=1821
+[Graph-SST2] CHOSEN edge range: [39, 55], used_preferred_min=False, mode=top_edges_threshold_fallback
+[Graph-SST2] Cache hit: ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/Graph-SST2_entropy_per_layer_alpha1.0/Graph-SST2_entropy_per_layer.npz (skip entropy compute)
+[Graph-SST2] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06785907559480192, 'relative_height': 0.8, 'num_selected_layers': 13}
+[Graph-SST2] Done.
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+
+>>> Processing Task: Graph-SST2
+[Graph-SST2] TRUE edge stats: min=1, max=55, median=18.0, n=1821
+[Graph-SST2] CHOSEN edge range: [39, 55], used_preferred_min=False, after_cap_n=1821, eligible_pref_n=0, mode=top_edges_threshold_fallback
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/Graph-SST2_perlayer_lineplot.png
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/Graph-SST2_per_layer_intersection.json
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+[Graph-SST5] TRUE edge stats: min=1, max=55, median=18.0, n=2210
+[Graph-SST5] CHOSEN edge range: [39, 55], used_preferred_min=False, mode=top_edges_threshold_fallback
+[Graph-SST5] Cache hit: ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/Graph-SST5_entropy_per_layer_alpha1.0/Graph-SST5_entropy_per_layer.npz (skip entropy compute)
+[Graph-SST5] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06829703812058896, 'relative_height': 0.8, 'num_selected_layers': 13}
+[Graph-SST5] Done.
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+
+>>> Processing Task: Graph-SST5
+[Graph-SST5] TRUE edge stats: min=1, max=55, median=18.0, n=2210
+[Graph-SST5] CHOSEN edge range: [39, 55], used_preferred_min=False, after_cap_n=2210, eligible_pref_n=0, mode=top_edges_threshold_fallback
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/Graph-SST5_perlayer_lineplot.png
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/Graph-SST5_per_layer_intersection.json
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+[Graph-Twitter] TRUE edge stats: min=3, max=40, median=21.0, n=692
+[Graph-Twitter] CHOSEN edge range: [31, 40], used_preferred_min=False, mode=top_edges_threshold_fallback
+[Graph-Twitter] Cache hit: ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/entropy_results/Graph-Twitter_entropy_per_layer_alpha1.0/Graph-Twitter_entropy_per_layer.npz (skip entropy compute)
+[Graph-Twitter] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 12, 'span': [5, 17], 'smooth_sigma': 1.0, 'min_prominence': 0.06086887355193724, 'relative_height': 0.8, 'num_selected_layers': 13}
+[Graph-Twitter] Done.
+Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
+
+>>> Processing Task: Graph-Twitter
+[Graph-Twitter] TRUE edge stats: min=3, max=40, median=21.0, n=692
+[Graph-Twitter] CHOSEN edge range: [31, 40], used_preferred_min=False, after_cap_n=692, eligible_pref_n=0, mode=top_edges_threshold_fallback
+  -> Line plot saved to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/scoring_results/per_layer_topk_concentration_std/Graph-Twitter_perlayer_lineplot.png
+Saved intersection to ../outputs/select4.0/Meta-Llama-3.1-8B-Instruct/select_results/Graph-Twitter_per_layer_intersection.json
+[run_select] (GraphWiz) model=Qwen3-8B -> ../outputs/select4.0/Qwen3-8B
+Loading model from /home/lym/data1/LLM-model/Qwen/Qwen3-8B ...
+Filtered samples count: 400
+[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
+[cycle] CHOSEN edge range: [89, 122], used_preferred_min=True, mode=median_center_window
+[cycle] Cached entropy saved to ../outputs/select4.0/Qwen3-8B/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.npz
+[cycle] Cache meta saved to ../outputs/select4.0/Qwen3-8B/entropy_results/cycle_entropy_per_layer_alpha1.0/cycle_entropy_per_layer.meta.json
+[cycle] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 6, 'span': [4, 7], 'smooth_sigma': 1.0, 'min_prominence': 0.40833330257635003, 'relative_height': 0.8, 'num_selected_layers': 4}
+[cycle] Done.
+Filtered samples count: 400
+[connectivity] TRUE edge stats: min=1, max=142, median=50.0, n=400
+[connectivity] CHOSEN edge range: [74, 94], used_preferred_min=True, mode=median_center_window
+[connectivity] Cached entropy saved to ../outputs/select4.0/Qwen3-8B/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.npz
+[connectivity] Cache meta saved to ../outputs/select4.0/Qwen3-8B/entropy_results/connectivity_entropy_per_layer_alpha1.0/connectivity_entropy_per_layer.meta.json
+[connectivity] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 6, 'span': [4, 7], 'smooth_sigma': 1.0, 'min_prominence': 0.3991609189840123, 'relative_height': 0.8, 'num_selected_layers': 4}
+[connectivity] Done.
+Filtered samples count: 400
+[hamilton] TRUE edge stats: min=4, max=383, median=169.0, n=400
+[hamilton] CHOSEN edge range: [73, 129], used_preferred_min=True, mode=median_center_window
+[hamilton] Cached entropy saved to ../outputs/select4.0/Qwen3-8B/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.npz
+[hamilton] Cache meta saved to ../outputs/select4.0/Qwen3-8B/entropy_results/hamilton_entropy_per_layer_alpha1.0/hamilton_entropy_per_layer.meta.json
+[hamilton] Middle-peak selection info: {'mode': 'middle_peak', 'best_peak': 6, 'span': [4, 7], 'smooth_sigma': 1.0, 'min_prominence': 0.3992194913830349, 'relative_height': 0.8, 'num_selected_layers': 4}
+[hamilton] Done.
+Filtered samples count: 400
+[substructure] TRUE edge stats: min=4, max=224, median=40.5, n=400
+[substructure] CHOSEN edge range: [81, 111], used_preferred_min=True, mode=median_center_window
