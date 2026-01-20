@@ -1,33 +1,36 @@
-CUDA=2,4
+CUDA=0,1,2,3
 BATCH_SIZE=4
 MAX_NEW_TOKENS=8
 LIMIT=400
-OUTPUT_DIR=./Results3.o
+OUTPUT_DIR=./outputs/Results4.0
 
-DATA_DIR="/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens/baselines/repos/ChemLLMBench/data/property_prediction"
+SCRIPT_PATH="$(realpath "$0")"
+mkdir -p "$OUTPUT_DIR"
+cp "$SCRIPT_PATH" "$OUTPUT_DIR/$(basename "$SCRIPT_PATH")"
+
+DATA_DIR="/home/lym/LLM-Research/Attention/Graph_Attention/SLASH/baselines/repos/ChemLLMBench/data/property_prediction"
 PROMPT_PATH="./prompt/property_prediction_graph_prompt.txt"
 
 TASKS=(BACE BBBP ClinTox HIV Tox21)
 
 MODELS=(
-  /home/lym/data1/LLM-model/meta-llama/Llama-3.2-3B-Instruct
-  # /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct
-  /home/lym/data1/LLM-model/Qwen/Qwen3-8B
   /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct
+  # /home/lym/data1/LLM-model/meta-llama/Llama-3.2-3B-Instruct
+  # /home/lym/data1/LLM-model/Qwen/Qwen3-8B
   # /home/lym/data1/LLM-model/Qwen/Qwen3-4B
   # /home/lym/data1/LLM-model/meta-llama/Llama-3.2-3B-Instruct
   # /home/lym/data1/LLM-model/Qwen/Qwen3-14B
   # /home/lym/data1/LLM-model/meta-llama/Llama-2-7b-chat-hf
 )
 
-SELECT_ROOT="/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens/outputs/final_select/select5.1.5/MolecularNet"
+SELECT_ROOT="/home/lym/LLM-Research/Attention/Graph_Attention/SLASH/outputs/final_select/select5.1.5/MolecularNet"
 
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
   SELECT_DIR="${SELECT_ROOT}/${MODEL_NAME}/select_results"
 
   for TASK in "${TASKS[@]}"; do
-    # 1) None
+    # 1) Vanilla
     CUDA_VISIBLE_DEVICES=$CUDA python eval_mol.py \
       --task "$TASK" \
       --model_path "$MODEL_PATH" \
@@ -43,7 +46,7 @@ for MODEL_PATH in "${MODELS[@]}"; do
       --batch_size "$BATCH_SIZE" \
       --max_new_tokens "$MAX_NEW_TOKENS"
 
-    # 2) intersection config（自动读取 select 结果）
+    # 2) SLASH
     CFG="${SELECT_DIR}/${TASK}_per_layer_intersection.json"
     if [[ -f "$CFG" ]]; then
       for DR in 0.4; do

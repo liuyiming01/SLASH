@@ -24,11 +24,11 @@ def _import_molecularnet_utils():
 
     import importlib.util
 
-    util_path = "/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens/baselines/molecularNet/utils.py"
+    util_path = "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH/baselines/molecularNet/utils.py"
     if not os.path.exists(util_path):
         raise FileNotFoundError(f"Cannot find MolecularNet utils.py at: {util_path}")
 
-    spec = importlib.util.spec_from_file_location("graphlens_molecularnet_utils", util_path)
+    spec = importlib.util.spec_from_file_location("slash_molecularnet_utils", util_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to import MolecularNet utils from: {util_path}")
 

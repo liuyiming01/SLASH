@@ -1,38 +1,27 @@
 import os
-from typing import Literal, Tuple
+import argparse
+import json
 
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import argparse
-import pandas as pd
 from tqdm import tqdm
 
 from .utils import (
     load_model_and_tokenizer,
     count_edges_in_prompt,
+    standardize_prompt_edges,
     select_layers_by_top_fraction,
     select_layers_auto_otsu,
+    select_layers_middle_peak_entropy,
+    select_layers_middle_peak_entropy_backpad,
 )
-
-
-def _ensure_tensor(x, device=None, dtype=torch.float32) -> torch.Tensor:
-    """
-    将输入转换成 torch.Tensor，并放到指定 device。
-    """
-    if isinstance(x, torch.Tensor):
-        t = x
-        if device is not None:
-            t = t.to(device)
-        if dtype is not None and t.dtype != dtype:
-            t = t.to(dtype)
-        return t
-    t = torch.as_tensor(x)
-    if device is not None:
-        t = t.to(device)
-    if dtype is not None:
-        t = t.to(dtype)
-    return t
+from .datasets import (
+    load_and_filter_samples,
+    choose_edge_range,
+    molecularnet_iter_task_label_ids,
+    molecularnet_sample_prompts_by_edge_range,
+)
 
 
 def matrix_based_entropy_from_svals(
@@ -42,168 +31,18 @@ def matrix_based_entropy_from_svals(
 ) -> torch.Tensor:
     """
     根据奇异值计算矩阵基熵（支持 batch）。
-
-    参数
-    ----
-    svals : torch.Tensor
-        形状 (..., r)，最后一维是奇异值 σ_j >= 0。
-    alpha : float
-        Renyi 阶数；alpha=1 时退化为 Shannon/von Neumann 型熵：
-          H = -sum_j p_j log p_j, p_j = σ_j^2 / sum_k σ_k^2
-    eps : float
-        数值稳定项，避免 log(0) / 除 0。
-
-    返回
-    ----
-    H : torch.Tensor
-        形状与 svals[..., 0] 相同，即去掉最后一维后的 batch 形状。
     """
     power = svals ** 2
     power_sum = power.sum(dim=-1, keepdim=True) + eps
-    p = power / power_sum  # (..., r)
+    p = power / power_sum
 
     if abs(alpha - 1.0) < 1e-6:
-        # Shannon 熵
         log_p = torch.log(p + eps)
-        H = -(p * log_p).sum(dim=-1)  # (...)
-    else:
-        # Renyi 熵
-        H_alpha = (p ** alpha).sum(dim=-1) + eps
-        H = torch.log(H_alpha) / (1.0 - alpha)
+        return -(p * log_p).sum(dim=-1)
 
-    return H
+    H_alpha = (p ** alpha).sum(dim=-1) + eps
+    return torch.log(H_alpha) / (1.0 - alpha)
 
-
-# def attention_entropy_per_head(
-#     attn: torch.Tensor,
-#     alpha: float = 1.0,
-# ) -> torch.Tensor:
-#     """
-#     模式 1: 对每个 (layer, head) 的 attention 矩阵计算矩阵基熵。
-
-#     参数
-#     ----
-#     attn : torch.Tensor
-#         形状 [L, H, T, T] 的注意力矩阵（已经是 softmax 后的权重）。
-#     alpha : float
-#         Renyi 阶数，默认 1.0（推荐）。
-
-#     返回
-#     ----
-#     ent_lh : torch.Tensor
-#         形状 [L, H]，每个 layer-head 的熵。
-#     """
-#     if attn.ndim != 4:
-#         raise ValueError(f"attn must have shape [L, H, T, T], got {attn.shape}")
-#     L, H, T, T2 = attn.shape
-#     if T != T2:
-#         raise ValueError("Attention matrices must be square [T, T].")
-
-#     device = attn.device
-#     dtype = torch.float32
-#     attn = attn.to(dtype)
-
-#     # 将 (L, H, T, T) 展平为 (L*H, T, T)，一次性做 SVD
-#     attn_flat = attn.reshape(L * H, T, T)  # [L*H, T, T]
-#     svals = torch.linalg.svdvals(attn_flat)  # [L*H, T]
-
-#     H_flat = matrix_based_entropy_from_svals(svals, alpha=alpha)  # [L*H]
-#     ent_lh = H_flat.reshape(L, H)  # [L, H]
-#     return ent_lh.to(device)
-
-def attention_entropy_per_head(
-    attn: torch.Tensor,
-    alpha: float = 1.0,
-) -> torch.Tensor:
-    """
-    模式 1: 对每个 (layer, head) 的 attention 矩阵计算矩阵基熵。
-    """
-    if attn.ndim != 4:
-        raise ValueError(f"attn must have shape [L, H, T, T], got {attn.shape}")
-    L, H, T, T2 = attn.shape
-    if T != T2:
-        raise ValueError("Attention matrices must be square [T, T].")
-
-    # 统一 dtype，避免 half/bfloat 影响 SVD
-    attn = attn.to(torch.float32)
-
-    # 不再一次性对 [L*H, T, T] 做 SVD，而是逐个 (L, H) 计算
-    ent_lh = torch.empty(L, H, device=attn.device, dtype=torch.float32)
-
-    for l in range(L):
-        for h in range(H):
-            # [T, T]
-            m = attn[l, h]
-            svals = torch.linalg.svdvals(m)              # [T]
-            H_val = matrix_based_entropy_from_svals(svals, alpha=alpha)  # 标量 tensor
-            ent_lh[l, h] = H_val.item()
-
-    return ent_lh
-
-
-# def attention_entropy_per_layer_mean_head(
-#     attn: torch.Tensor,
-#     alpha: float = 1.0,
-# ) -> torch.Tensor:
-#     """
-#     模式 2: 每层先对所有 head 的 attention 做平均，再计算矩阵基熵。
-
-#     参数
-#     ----
-#     attn : torch.Tensor
-#         形状 [L, H, T, T] 的注意力矩阵。
-#     alpha : float
-#         Renyi 阶数，默认 1.0。
-
-#     返回
-#     ----
-#     ent_layer : torch.Tensor
-#         形状 [L]，每层一个熵值。
-#     """
-#     if attn.ndim != 4:
-#         raise ValueError(f"attn must have shape [L, H, T, T], got {attn.shape}")
-#     L, H, T, T2 = attn.shape
-#     if T != T2:
-#         raise ValueError("Attention matrices must be square [T, T].")
-
-#     device = attn.device
-#     dtype = torch.float32
-#     attn = attn.to(dtype)
-
-#     # 对 head 取平均: [L, T, T]
-#     attn_layer = attn.mean(dim=1)  # [L, T, T]
-#     svals = torch.linalg.svdvals(attn_layer)  # [L, T]
-#     ent_layer = matrix_based_entropy_from_svals(svals, alpha=alpha)  # [L]
-#     return ent_layer.to(device)
-
-def attention_entropy_per_layer_mean_head(
-    attn: torch.Tensor,
-    alpha: float = 1.0,
-) -> torch.Tensor:
-    """
-    模式 2: 每层先对所有 head 的 attention 做平均，再计算矩阵基熵。
-    """
-    if attn.ndim != 4:
-        raise ValueError(f"attn must have shape [L, H, T, T], got {attn.shape}")
-    L, H, T, T2 = attn.shape
-    if T != T2:
-        raise ValueError("Attention matrices must be square [T, T].")
-
-    attn = attn.to(torch.float32)
-    attn_layer = attn.mean(dim=1)  # [L, T, T]
-
-    ent_layer = torch.empty(L, device=attn.device, dtype=torch.float32)
-    for l in range(L):
-        m = attn_layer[l]                      # [T, T]
-        svals = torch.linalg.svdvals(m)        # [T]
-        H_val = matrix_based_entropy_from_svals(svals, alpha=alpha)
-        ent_layer[l] = H_val.item()
-
-    return ent_layer
-
-# ===========================
-# 可视化工具
-# ===========================
 
 def plot_entropy_heatmap_and_layer_mean(
     ent_lh: torch.Tensor,
@@ -211,18 +50,10 @@ def plot_entropy_heatmap_and_layer_mean(
     prefix: str = "attn_entropy_per_head",
     show: bool = False,
 ):
-    """
-    模式 1 可视化：
-      - (L, H) 的热力图；
-      - 每层 head 平均熵的折线图。
-    """
     os.makedirs(save_dir, exist_ok=True)
     L, H = ent_lh.shape
-
     ent_np = ent_lh.detach().cpu().numpy()
-    layer_idx = np.arange(L)
 
-    # 1) 热力图
     plt.figure(figsize=(max(6, H * 0.4), max(4, L * 0.4)))
     im = plt.imshow(ent_np, aspect="auto", origin="lower", cmap="viridis")
     plt.colorbar(im, label="Matrix-Based Entropy")
@@ -230,23 +61,20 @@ def plot_entropy_heatmap_and_layer_mean(
     plt.ylabel("Layer")
     plt.title("Attention Entropy per Layer-Head")
     plt.tight_layout()
-    heatmap_path = os.path.join(save_dir, f"{prefix}_heatmap.png")
-    plt.savefig(heatmap_path, dpi=200)
+    plt.savefig(os.path.join(save_dir, f"{prefix}_heatmap.png"), dpi=200)
     if show:
         plt.show()
     plt.close()
 
-    # 2) 每层 head 平均熵折线图
-    mean_per_layer = ent_np.mean(axis=1)  # [L]
+    mean_per_layer = ent_np.mean(axis=1)
     plt.figure(figsize=(6, 4))
-    plt.plot(layer_idx, mean_per_layer, marker="o")
+    plt.plot(np.arange(L), mean_per_layer, marker="o")
     plt.xlabel("Layer")
     plt.ylabel("Mean Entropy over Heads")
     plt.title("Mean Attention Entropy per Layer")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    line_path = os.path.join(save_dir, f"{prefix}_layer_mean.png")
-    plt.savefig(line_path, dpi=200)
+    plt.savefig(os.path.join(save_dir, f"{prefix}_layer_mean.png"), dpi=200)
     if show:
         plt.show()
     plt.close()
@@ -258,286 +86,274 @@ def plot_layer_entropy(
     prefix: str = "attn_entropy_layer_mean_head",
     show: bool = False,
 ):
-    """
-    模式 2 可视化：每层平均 head 后的 attention 矩阵熵的折线图。
-    """
     os.makedirs(save_dir, exist_ok=True)
     ent_np = ent_layer.detach().cpu().numpy()
     L = ent_np.shape[0]
-    layer_idx = np.arange(L)
 
     plt.figure(figsize=(6, 4))
-    plt.plot(layer_idx, ent_np, marker="o")
+    plt.plot(np.arange(L), ent_np, marker="o")
     plt.xlabel("Layer")
     plt.ylabel("Layer-Level Entropy")
     plt.title("Entropy of Mean-Head Attention per Layer")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    out_path = os.path.join(save_dir, f"{prefix}.png")
-    plt.savefig(out_path, dpi=200)
+    plt.savefig(os.path.join(save_dir, f"{prefix}.png"), dpi=200)
     if show:
         plt.show()
     plt.close()
 
 
-# ===========================
-# 数据加载 & 过滤（参考 scoring.py）
-# ===========================
-
-def _load_and_filter_samples(
-    data_path: str,
-    input_column: str,
-    min_edges: int,
-    max_edges: int,
-    sample_num: int,
-):
-    """
-    加载并过滤数据：
-      - 支持 json/jsonl
-      - 根据边数过滤
-    返回：
-      samples_df
-    """
-    if not os.path.exists(data_path):
-        print(f"Warning: data file not found: {data_path}")
-        return None
-
-    ext = os.path.splitext(data_path)[1].lower()
-    if ext in [".json", ".jsonl"]:
-        df = pd.read_json(data_path, lines=True)
-    else:
-        raise ValueError(f"Unsupported data file extension: {ext}, path={data_path}")
-
-    if input_column not in df.columns:
-        raise ValueError(f"Input column '{input_column}' not found in data file: {data_path}")
-
-    df["__num_edges"] = df[input_column].map(count_edges_in_prompt)
-    df_filt = df[(df["__num_edges"] >= min_edges) &
-                 (df["__num_edges"] <= max_edges)]
-    print("Filtered samples count:", len(df_filt))
-    if len(df_filt) == 0:
-        print(f"Warning: no samples with {min_edges}-{max_edges} edges in {data_path}.")
-        return None
-
-    n_samples = min(sample_num, len(df_filt))
-    samples = df_filt.sample(n=n_samples, random_state=42)
-
-    return samples
-
-
 def _find_data_file(data_dir: str, task_name: str) -> str:
-    """
-    在 data_dir 中根据 task_name 查找数据文件，优先使用:
-      - {task_name}.jsonl
-      - {task_name}.json
-    """
     cand1 = os.path.join(data_dir, f"{task_name}_test.jsonl")
     cand2 = os.path.join(data_dir, f"{task_name}_test.json")
-
     if os.path.exists(cand1):
         return cand1
     if os.path.exists(cand2):
         return cand2
-
     raise FileNotFoundError(
-        f"Cannot find data file for task '{task_name}' in {data_dir}. "
-        f"Tried: {cand1}, {cand2}"
+        f"Cannot find data file for task '{task_name}' in {data_dir}. Tried: {cand1}, {cand2}"
     )
 
-
-# ===========================
-# 主流程：在 sample_num 个样本上取熵的平均
-# ===========================
 
 @torch.no_grad()
-def process_task(
-    task_name: str,
-    cfg: dict,
-    model,
-    tokenizer,
-):
-    """
-    对单个 task：
-      1) 加载并过滤样本
-      2) 前向推理获取 attention
-      3) 计算矩阵基熵
-      4) 在 sample_num 个样本上求平均
-      5) 保存 npz + 绘图 + 选择高分 layer/head
-    """
+def process_task(task_name: str, cfg: dict, model, tokenizer):
     data_dir = cfg["data_dir"]
     input_column = cfg["input_column"]
-    min_edges = cfg["min_edges"]
-    max_edges = cfg["max_edges"]
-    sample_num = cfg["sample_num"]
-    max_seq_len = cfg["max_seq_len"]
-    score_mode = cfg["score_mode"]
-    alpha = cfg["alpha"]
+    requested_sample_num = int(cfg["sample_num"])
+    max_seq_len = int(cfg["max_seq_len"])
+    score_mode = cfg["score_mode"]  # per_head | per_layer
+    alpha = float(cfg["alpha"])
     output_dir = cfg["output_dir"]
-    top_fraction = cfg.get("select_top_fraction", 0.4)
+    top_fraction = float(cfg.get("select_top_fraction", 0.4))
 
-    data_path = _find_data_file(data_dir, task_name)
-    print(f"[{task_name}] Loading data from {data_path}")
-    samples = _load_and_filter_samples(
-        data_path=data_path,
-        input_column=input_column,
-        min_edges=min_edges,
-        max_edges=max_edges,
-        sample_num=sample_num,
-    )
-    if samples is None or len(samples) == 0:
-        print(f"[{task_name}] No valid samples. Skip.")
-        return
+    # 1) load
+    graphsst = cfg.get("graphsst", None)
+    molecularnet = cfg.get("molecularnet", None)
 
-    # 累加器（懒初始化，第一次 forward 后根据 L/H 大小创建）
-    score_sum = None
-    score_cnt = None
-    num_layers = None
-    num_heads = None
+    # ========== MolecularNet专用分支 ==========
+    if molecularnet is not None:
+        preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
+        hard_max_edges = cfg.get("hard_max_edges", None)
+        samples, (chosen_min, chosen_max), stats = molecularnet_sample_prompts_by_edge_range(
+            molecularnet=molecularnet,
+            input_column=input_column,
+            sample_num=requested_sample_num,
+            preferred_min_edges=preferred_min_edges,
+            hard_max_edges=hard_max_edges,
+            seed=42,
+            require_label=True,
+        )
+        if samples is None or len(samples) == 0:
+            print(f"[{task_name}] No MolecularNet samples after auto edge_range sampling. Skip.")
+            return
 
-    # for _, row in tqdm(samples.iterrows(), total=len(samples), desc=f"[{task_name}] Entropy"):
-    #     prompt = row[input_column]
+        cfg["min_edges"] = int(chosen_min)
+        cfg["max_edges"] = int(chosen_max)
 
-    #     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
-    #     if enc.input_ids.shape[1] > max_seq_len:
-    #         enc.input_ids = enc.input_ids[:, :max_seq_len]
-    #         if "attention_mask" in enc:
-    #             enc.attention_mask = enc.attention_mask[:, :max_seq_len]
+        print(
+            f"[{task_name}] TRUE edge stats (valid pool): "
+            f"min={int(stats.get('true_min_edges', -1))}, "
+            f"max={int(stats.get('true_max_edges', -1))}, "
+            f"median={float(stats.get('true_median_edges', float('nan'))):.1f}, "
+            f"valid_n={int(stats.get('true_valid_pool_n', stats.get('valid_n', -1)))}"
+        )
+        print(
+            f"[{task_name}] CHOSEN edge range: [{chosen_min}, {chosen_max}], "
+            f"used_preferred_min={stats.get('used_preferred_min')}, "
+            f"in_range_n={stats.get('in_range_n')}, "
+            f"chosen_n={stats.get('chosen_n')}, "
+            f"built_prompts_n={stats.get('built_prompts_n')}, "
+            f"mode={stats.get('mode')}"
+        )
 
-    #     out = model(enc.input_ids, output_attentions=True, use_cache=False)
-    #     attn_list = out.attentions  # list of length L, each: [batch, H, S, S]
+        subset = samples
+        all_df = samples  # 用于meta统计
+    else:
+        data_path = None if (graphsst is not None or molecularnet is not None) else (cfg.get("data_path") or _find_data_file(data_dir, task_name))
 
-    #     # 只取 batch=0
-    #     L_this = len(attn_list)
-    #     H_this = attn_list[0].shape[1]
+        all_df = load_and_filter_samples(
+            data_path=data_path,
+            input_column=input_column,
+            min_edges=0,
+            max_edges=10**9,
+            sample_num=10**9,
+            graphsst=graphsst,
+            molecularnet=molecularnet,
+        )
+        if all_df is None or len(all_df) == 0:
+            print(f"[{task_name}] No samples. Skip.")
+            return
 
-    #     # 懒初始化累加器
-    #     if score_sum is None:
-    #         num_layers = L_this
-    #         num_heads = H_this
-    #         if score_mode == "per_head":
-    #             score_sum = np.zeros((num_layers, num_heads), dtype=np.float64)
-    #             score_cnt = np.zeros((num_layers, num_heads), dtype=np.int32)
-    #         elif score_mode == "per_layer":
-    #             score_sum = np.zeros((num_layers,), dtype=np.float64)
-    #             score_cnt = np.zeros((num_layers,), dtype=np.int32)
-    #         else:
-    #             raise ValueError(f"Unknown score_mode: {score_mode}")
+        # 2) 边数统计：优先用 datasets.py 的 __num_edges（Graph-SST 已做 standardize 更稳）
+        if "__num_edges" in all_df.columns:
+            edge_counts = all_df["__num_edges"].to_numpy(dtype=np.int32)
+        else:
+            edge_counts = all_df[input_column].map(lambda s: count_edges_in_prompt(standardize_prompt_edges(s))).to_numpy(dtype=np.int32)
 
-    #     # 组装为 [L, H, T, T]
-    #     attn_tensor = torch.stack([a[0] for a in attn_list], dim=0)  # [L, H, S, S]
+        print(
+            f"[{task_name}] TRUE edge stats: min={int(edge_counts.min())}, "
+            f"max={int(edge_counts.max())}, median={float(np.median(edge_counts)):.1f}, n={len(edge_counts)}"
+        )
 
-    #     if score_mode == "per_head":
-    #         ent_lh = attention_entropy_per_head(attn_tensor, alpha=alpha)  # [L, H]
-    #         ent_np = ent_lh.detach().cpu().numpy()
-    #         score_sum += ent_np
-    #         score_cnt += 1  # 对所有位置统一 +1
+        preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
+        hard_max_edges = cfg.get("hard_max_edges", None)
 
-    #     else:  # "per_layer"
-    #         ent_layer = attention_entropy_per_layer_mean_head(attn_tensor, alpha=alpha)  # [L]
-    #         ent_np = ent_layer.detach().cpu().numpy()
-    #         score_sum += ent_np
-    #         score_cnt += 1
+        chosen_min, chosen_max, stats = choose_edge_range(
+            edge_counts=edge_counts,
+            sample_num=requested_sample_num,
+            preferred_min_edges=preferred_min_edges,
+            hard_max_edges=hard_max_edges,
+        )
+        if chosen_min is None:
+            print(f"[{task_name}] Cannot choose edge range.")
+            return
 
-    # # 聚合平均
-    # avg_entropy = score_sum / np.maximum(score_cnt, 1)
+        cfg["min_edges"] = int(chosen_min)
+        cfg["max_edges"] = int(chosen_max)
 
-    for _, row in tqdm(samples.iterrows(), total=len(samples), desc=f"[{task_name}] Entropy"):
-        prompt = row[input_column]
+        mask = (edge_counts >= chosen_min) & (edge_counts <= chosen_max)
+        subset = all_df.loc[mask]
+        if len(subset) < requested_sample_num:
+            print(f"[{task_name}] Warning: subset size {len(subset)} < sample_num {requested_sample_num}, fallback to full set.")
+            subset = all_df
 
-        enc = tokenizer(prompt, return_tensors="pt").to(model.device)
-        if enc.input_ids.shape[1] > max_seq_len:
-            enc.input_ids = enc.input_ids[:, :max_seq_len]
-            if "attention_mask" in enc:
-                enc.attention_mask = enc.attention_mask[:, :max_seq_len]
+        samples = subset.sample(n=min(requested_sample_num, len(subset)), random_state=42).reset_index(drop=True)
 
-        out = model(enc.input_ids, output_attentions=True, use_cache=False)
-        attn_list = out.attentions  # list of length L, each: [batch, H, S, S]
+        print(
+            f"[{task_name}] CHOSEN edge range: [{chosen_min}, {chosen_max}], "
+            f"used_preferred_min={stats.get('used_preferred_min')}, "
+            f"mode={stats.get('mode')}"
+        )
 
-        # 只取 batch=0
-        L_this = len(attn_list)
-        H_this = attn_list[0].shape[1]
-
-        # 懒初始化累加器
-        if score_sum is None:
-            num_layers = L_this
-            num_heads = H_this
-            if score_mode == "per_head":
-                score_sum = np.zeros((num_layers, num_heads), dtype=np.float64)
-                score_cnt = np.zeros((num_layers, num_heads), dtype=np.int32)
-            elif score_mode == "per_layer":
-                score_sum = np.zeros((num_layers,), dtype=np.float64)
-                score_cnt = np.zeros((num_layers,), dtype=np.int32)
-            else:
-                raise ValueError(f"Unknown score_mode: {score_mode}")
-
-        # ===== 关键改动：逐层 / 逐 head 在 CPU + float32 上计算熵 =====
-        if score_mode == "per_head":
-            for l, attn_l in enumerate(attn_list):
-                # attn_l: [1, H, S, S]，先搬到 CPU 并转成 float32
-                attn_l_cpu = attn_l[0].detach().to("cpu", torch.float32)  # [H, S, S]
-                for h in range(H_this):
-                    m = attn_l_cpu[h]                    # [S, S]
-                    svals = torch.linalg.svdvals(m)      # [S]
-                    H_val = matrix_based_entropy_from_svals(svals, alpha=alpha)  # 标量
-                    score_sum[l, h] += float(H_val)
-                    score_cnt[l, h] += 1
-        else:  # "per_layer"
-            for l, attn_l in enumerate(attn_list):
-                attn_l_cpu = attn_l[0].detach().to("cpu", torch.float32)  # [H, S, S]
-                m = attn_l_cpu.mean(dim=0)             # [S, S]
-                svals = torch.linalg.svdvals(m)        # [S]
-                H_val = matrix_based_entropy_from_svals(svals, alpha=alpha)
-                score_sum[l] += float(H_val)
-                score_cnt[l] += 1
-
-        # 及时释放 GPU 上的中间变量
-        del out, attn_list
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-    # 聚合平均
-    avg_entropy = score_sum / np.maximum(score_cnt, 1)
-
-    # 保存 & 绘图
-    out_dir_mode = os.path.join(output_dir, f"{task_name}_entropy_{score_mode}_alpha{alpha}")
+    # -----------------------------
+    # Cache reuse
+    # -----------------------------
+    out_dir_mode = os.path.join(output_dir, f"{task_name}_entropy_{score_mode}")
     os.makedirs(out_dir_mode, exist_ok=True)
 
     cache_file = os.path.join(out_dir_mode, f"{task_name}_entropy_{score_mode}.npz")
-    np.savez_compressed(cache_file,
-                        avg_entropy=avg_entropy,
-                        count=score_cnt)
-    print(f"[{task_name}] Cached entropy saved to {cache_file}")
+    meta_file = os.path.join(out_dir_mode, f"{task_name}_entropy_{score_mode}.meta.json")
+    print(f"[{task_name}] Cache file: {cache_file}")
+    meta = {
+        "task_name": task_name,
+        "score_mode": score_mode,
+        "alpha": float(alpha),
+        "sample_num": int(requested_sample_num),
+        "max_seq_len": int(max_seq_len),
+        "preferred_min_edges": int(preferred_min_edges),
+        "hard_max_edges": (None if hard_max_edges is None else int(hard_max_edges)),
+        "chosen_min_edges": int(chosen_min),
+        "chosen_max_edges": int(chosen_max),
+        "used_preferred_min": bool(stats.get("used_preferred_min")),
+        "selection_mode": str(stats.get("mode")),
+        "n_total": int(len(all_df)),
+        "n_subset": int(len(subset)),
+        "n_samples": int(len(samples)),
+    }
 
+    avg_entropy = None
+    score_cnt = None
+
+    if os.path.exists(cache_file) and os.path.exists(meta_file):
+        try:
+            with open(meta_file, "r") as f:
+                old_meta = json.load(f)
+            if old_meta == meta:
+                data = np.load(cache_file)
+                avg_entropy = data["avg_entropy"]
+                score_cnt = data["count"]
+                print(f"[{task_name}] Cache hit: {cache_file} (skip entropy compute)")
+        except Exception as e:
+            print(f"[{task_name}] Cache load failed, will recompute. Reason: {e}")
+
+    if avg_entropy is None or score_cnt is None:
+        # 3) 熵累计（原逻辑不变）
+        score_sum = None
+        score_cnt = None
+        num_layers = None
+        num_heads = None
+
+        empty_cache_every = int(cfg.get("empty_cache_every", 20))
+
+        for i, row in enumerate(tqdm(samples.itertuples(index=False), total=len(samples), desc=f"[{task_name}] Entropy")):
+            prompt = getattr(row, input_column)
+
+            enc = tokenizer(prompt, return_tensors="pt").to(model.device)
+            if enc.input_ids.shape[1] > max_seq_len:
+                enc.input_ids = enc.input_ids[:, :max_seq_len]
+                if "attention_mask" in enc:
+                    enc.attention_mask = enc.attention_mask[:, :max_seq_len]
+
+            out = model(enc.input_ids, output_attentions=True, use_cache=False)
+            attn_list = out.attentions  # list[L], each: [B, H, S, S]
+
+            L_this = len(attn_list)
+            H_this = attn_list[0].shape[1]
+
+            if score_sum is None:
+                num_layers, num_heads = L_this, H_this
+                if score_mode == "per_head":
+                    score_sum = np.zeros((num_layers, num_heads), dtype=np.float64)
+                    score_cnt = np.zeros((num_layers, num_heads), dtype=np.int32)
+                elif score_mode == "per_layer":
+                    score_sum = np.zeros((num_layers,), dtype=np.float64)
+                    score_cnt = np.zeros((num_layers,), dtype=np.int32)
+                else:
+                    raise ValueError(f"Unknown score_mode: {score_mode}")
+
+            if score_mode == "per_head":
+                for l, attn_l in enumerate(attn_list):
+                    a = attn_l[0].detach().to("cpu", torch.float32)
+                    for h in range(H_this):
+                        svals = torch.linalg.svdvals(a[h])
+                        score_sum[l, h] += float(matrix_based_entropy_from_svals(svals, alpha=alpha))
+                        score_cnt[l, h] += 1
+            else:
+                for l, attn_l in enumerate(attn_list):
+                    a = attn_l[0].detach().to("cpu", torch.float32)
+                    m = a.mean(dim=0)
+                    svals = torch.linalg.svdvals(m)
+                    score_sum[l] += float(matrix_based_entropy_from_svals(svals, alpha=alpha))
+                    score_cnt[l] += 1
+
+            if torch.cuda.is_available() and empty_cache_every > 0 and ((i + 1) % empty_cache_every == 0):
+                torch.cuda.empty_cache()
+
+        # 4) 平均 + 保存缓存（原逻辑 + meta）
+        avg_entropy = score_sum / np.maximum(score_cnt, 1)
+
+        np.savez_compressed(cache_file, avg_entropy=avg_entropy, count=score_cnt)
+        with open(meta_file, "w") as f:
+            json.dump(meta, f, indent=2, sort_keys=True)
+        print(f"[{task_name}] Cached entropy saved to {cache_file}")
+        print(f"[{task_name}] Cache meta saved to {meta_file}")
+
+    # ---- from here, keep your original plotting + selection, but remove the duplicated out_dir_mode/cache_file block ----
+    ent_tensor = torch.from_numpy(avg_entropy.astype(np.float32))
     if score_mode == "per_head":
-        ent_tensor = torch.from_numpy(avg_entropy.astype(np.float32))
         plot_entropy_heatmap_and_layer_mean(
             ent_tensor,
             save_dir=out_dir_mode,
             prefix=f"{task_name}_entropy_alpha{alpha}_per_head",
             show=False,
         )
+        num_heads = int(avg_entropy.shape[1])
     else:
-        ent_tensor = torch.from_numpy(avg_entropy.astype(np.float32))
         plot_layer_entropy(
             ent_tensor,
             save_dir=out_dir_mode,
             prefix=f"{task_name}_entropy_alpha{alpha}_per_layer_mean_head",
             show=False,
         )
+        # per_layer cache path needs num_heads for JSON; prefer model.config
+        num_heads = int(getattr(model.config, "num_attention_heads", 0))
 
-    # ========= 基于熵的 layer / head 自动选择 =========
     valid_mask = score_cnt > 0
 
-    json_top = os.path.join(
-        out_dir_mode,
-        f"{task_name}_entropy_selected_layers_top_{int(top_fraction * 100)}.json",
-    )
-    json_auto = os.path.join(
-        out_dir_mode,
-        f"{task_name}_entropy_selected_layers_auto.json",
-    )
+    json_top = os.path.join(out_dir_mode, f"{task_name}_selected_layers_top_{int(top_fraction * 100)}_entropy.json")
+    json_auto = os.path.join(out_dir_mode, f"{task_name}_selected_layers_auto_entropy.json")
+    json_mid = os.path.join(out_dir_mode, f"{task_name}_selected_layers_middle_peak_entropy.json")
 
-    # 固定比例 top-k
     select_layers_by_top_fraction(
         scores=avg_entropy,
         valid_mask=valid_mask,
@@ -546,8 +362,15 @@ def process_task(
         top_fraction=top_fraction,
         json_path=json_top,
     )
-
-    # Otsu 自动阈值（方差太小则回退到 top_fraction）
+    mid_sel, mid_info = select_layers_middle_peak_entropy_backpad(
+        scores=avg_entropy,
+        valid_mask=valid_mask,
+        score_mode=score_mode,
+        num_heads=num_heads,
+        json_path=json_mid,
+        fallback_top_fraction=top_fraction,
+    )
+    print(f"[{task_name}] Middle-peak selection info: {mid_info}")
     select_layers_auto_otsu(
         scores=avg_entropy,
         valid_mask=valid_mask,
@@ -559,55 +382,39 @@ def process_task(
 
     print(f"[{task_name}] Done.")
 
-# ===========================
-# 命令行入口（风格参考 scoring.py）
-# ===========================
 
 def parse_args():
     p = argparse.ArgumentParser(description="GraphLens: matrix-based entropy on attention")
 
-    # 基本参数
-    p.add_argument("--model_path", type=str, required=True,
-                   help="Path to HF model (or backend-specific id)")
-    p.add_argument("--task_name", type=str, required=True,
-                   help="Task name, used for locating data file and output naming")
-    p.add_argument("--data_dir", type=str, required=True,
-                   help="Path to dataset directory containing task files")
-    p.add_argument("--output_dir", type=str, required=True,
-                   help="Directory to save entropy scores and plots")
-    p.add_argument("--input_column", type=str, default="input_prompt",
-                   help="Column name that contains the graph prompt text")
+    p.add_argument("--model_path", type=str, required=True)
+    p.add_argument("--task_name", type=str, required=True)
+    p.add_argument("--data_dir", type=str, required=True)
+    p.add_argument("--output_dir", type=str, required=True)
+    p.add_argument("--input_column", type=str, default="input_prompt")
+    p.add_argument(
+        "--prompt_path",
+        type=str,
+        default=None,
+        help="Path to the graph prompt template file.",
+    )
+    p.add_argument("--sample_num", type=int, default=100)
+    p.add_argument("--max_seq_len", type=int, default=1000)
 
-    # 样本筛选
-    p.add_argument("--sample_num", type=int, default=100,
-                   help="Number of samples to use for entropy computation")
-    p.add_argument("--min_edges", type=int, default=80,
-                   help="Min number of edges in graph description")
-    p.add_argument("--max_edges", type=int, default=120,
-                   help="Max number of edges in graph description")
+    p.add_argument("--score_mode", type=str, default="per_head", choices=["per_head", "per_layer"])
+    p.add_argument("--alpha", type=float, default=1.0)
 
-    # 模型推理相关
-    p.add_argument("--max_seq_len", type=int, default=1000,
-                   help="Max sequence length for model input")
+    p.add_argument("--plot_dpi", type=int, default=200)
+    p.add_argument("--plot_line_color", type=str, default="C0")
+    p.add_argument("--select_top_fraction", type=float, default=0.4)
 
-    # 打分模式
-    p.add_argument("--score_mode", type=str, default="per_head",
-                   choices=["per_head", "per_layer"],
-                   help="Entropy mode: per head or per layer (mean over heads)")
+    # Graph-SST
+    p.add_argument("--split", type=str, default="test")
 
-    # 熵的阶数
-    p.add_argument("--alpha", type=float, default=1.0,
-                   help="Order alpha for matrix-based entropy (alpha=1 is Shannon/von Neumann)")
+    # perf
+    p.add_argument("--empty_cache_every", type=int, default=20, help="Call torch.cuda.empty_cache every N samples (0 to disable).")
 
-    # 绘图配置（目前只简单使用 dpi，可扩展）
-    p.add_argument("--plot_dpi", type=int, default=200,
-                   help="DPI for saved figures")
-    p.add_argument("--plot_line_color", type=str, default="C0",
-                   help="Line color for per-layer plots")
-
-    # 基于熵选择高分 layer / head 的比例（与 scoring.py 的默认值保持一致）
-    p.add_argument("--select_top_fraction", type=float, default=0.4,
-                   help="Top fraction used when entropy-based selection falls back from Otsu")
+    p.add_argument("--preferred_min_edges", type=int, default=60)
+    p.add_argument("--hard_max_edges", type=int, default=-1)
 
     return p.parse_args()
 
@@ -619,38 +426,74 @@ def main():
         "output_dir": args.output_dir,
         "input_column": args.input_column,
         "sample_num": args.sample_num,
-        "min_edges": args.min_edges,
-        "max_edges": args.max_edges,
         "max_seq_len": args.max_seq_len,
         "score_mode": args.score_mode,
         "alpha": args.alpha,
-        "plot": {
-            "dpi": args.plot_dpi,
-            "line_color": args.plot_line_color,
-        },
+        "plot": {"dpi": args.plot_dpi, "line_color": args.plot_line_color},
         "select_top_fraction": args.select_top_fraction,
+        "data_path": None,
+        "graphsst": None,
+        "molecularnet": None,
+        "empty_cache_every": args.empty_cache_every,
+        "preferred_min_edges": int(args.preferred_min_edges),
+        "hard_max_edges": (None if int(args.hard_max_edges) < 0 else int(args.hard_max_edges)),
     }
-
 
     print(f"Loading model from {args.model_path} ...")
     model, tokenizer = load_model_and_tokenizer(args.model_path)
 
-    tasks = []
-    if args.task_name.startswith('GraphWiz'):
-        parts = args.task_name.split('_', 1)
-        if len(parts) > 1 and parts[1]:
-            tasks.append(parts[1])
+    if args.task_name.startswith("GraphWiz"):
+        parts = args.task_name.split("_", 1)
+        tasks = [parts[1]] if (len(parts) > 1 and parts[1]) else [
+            "cycle", "connectivity", "hamilton", "substructure",
+            "bipartite", "flow", "shortest", "topology", "triangle"
+        ]
+        for task in tasks:
+            cfg["graphsst"] = None
+            cfg["data_path"] = None
+            process_task(task_name=task, cfg=cfg, model=model, tokenizer=tokenizer)
+        return
+
+    elif args.task_name in ("Graph-SST", "Graph-SST2", "Graph-SST5", "Graph-Twitter"):
+        if args.task_name == "Graph-SST":
+            tasks = ["Graph-SST2", "Graph-SST5", "Graph-Twitter"]
         else:
-            tasks = ["cycle", "connectivity", "hamilton", "substructure", "bipartite", "flow", "shortest", "topology", "triangle"]
+            tasks = [args.task_name]
+        
+        for task in tasks:
+            cfg["data_path"] = None
+            cfg["graphsst"] = {
+                "root": args.data_dir,
+                "name": task,
+                "split": args.split,
+                "prompt_path": args.prompt_path,
+            }
+            process_task(task, cfg, model, tokenizer)
+
+    elif args.task_name.startswith("Mol"):
+        suffix = ""
+        parts = args.task_name.split("_", 1)
+        if len(parts) > 1 and parts[1]:
+            suffix = parts[1]
+
+        for task_id, task, label_col in molecularnet_iter_task_label_ids(suffix or None):
+            cfg["data_path"] = None
+            cfg["graphsst"] = None
+            cfg["molecularnet"] = {
+                "root": args.data_dir,
+                "task": task,
+                "label_col": label_col,  # now single label; Tox21 uses __TOX21_TOXIC_ANY__
+                "split": args.split,      # "test" or "sample"
+                "prompt_path": args.prompt_path,
+                "shot": 0,
+                "seed": 42,
+                "weighted_edges": False,
+            }
+            process_task(task_name=task_id, cfg=cfg, model=model, tokenizer=tokenizer)
+        return
+
     else:
         raise ValueError(f"Unknown task name: {args.task_name}")
-    for task in tasks:
-        process_task(
-            task_name=task,
-            cfg=cfg,
-            model=model,
-            tokenizer=tokenizer,
-        )
 
 
 if __name__ == "__main__":

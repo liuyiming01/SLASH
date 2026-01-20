@@ -26,20 +26,20 @@ from utils import (
 )
 
 
-# NEW: allow importing GraphLens helpers (edge-range sampling)
-_GRAPH_LENS_IMPORTED = False
-def _try_import_graphlens():
-    global _GRAPH_LENS_IMPORTED
-    if _GRAPH_LENS_IMPORTED:
+# NEW: allow importing SLASH helpers (edge-range sampling)
+_SLASH_IMPORTED = False
+def _try_import_slash():
+    global _SLASH_IMPORTED
+    if _SLASH_IMPORTED:
         return True
     try:
-        # repo root: .../GraphLens ; package path: GraphLens/src
-        repo_root = "/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens"
+        # repo root: .../SLASH ; package path: SLASH/src
+        repo_root = "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH"
         src_path = os.path.join(repo_root, "src")
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
-        from graphlens.datasets import molecularnet_sample_indices_by_edge_range  # noqa: F401
-        _GRAPH_LENS_IMPORTED = True
+        from slash.datasets import molecularnet_sample_indices_by_edge_range  # noqa: F401
+        _SLASH_IMPORTED = True
         return True
     except Exception:
         return False
@@ -135,7 +135,7 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
     import sys
     import types
 
-    sys.path.insert(0, "/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens")
+    sys.path.insert(0, "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH")
 
     model_type = getattr(getattr(model, "config", None), "model_type", None)
     model_name = model.__class__.__name__.lower()
@@ -465,10 +465,10 @@ def main():
     eval_indices = None
     edge_range_tag = None
     if (args.sample_num is not None) and (not args.no_edge_range_sample):
-        ok = _try_import_graphlens()
+        ok = _try_import_slash()
         if not ok:
-            raise ImportError("Failed to import GraphLens for edge-range sampling. Check GraphLens/src is accessible.")
-        from graphlens.datasets import molecularnet_sample_indices_by_edge_range
+            raise ImportError("Failed to import SLASH for edge-range sampling. Check SLASH/src is accessible.")
+        from slash.datasets import molecularnet_sample_indices_by_edge_range
 
         mn_cfg = {
             "root": args.data_dir,

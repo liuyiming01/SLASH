@@ -177,6 +177,9 @@ cython_debug/
 tests
 outputs
 modeling/references
+src/slash/entropy_old.py
+src/slash/refresh_intersections.py
+src/slash/viz/token_test.py
 baselines/Graph-SST/**/
 baselines/GraphWiz/**/
 baselines/molecularNet/**/
