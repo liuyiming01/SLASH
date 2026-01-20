@@ -176,7 +176,9 @@ cython_debug/
 # custom .gitignore
 tests
 outputs
+modeling/references
 baselines/Graph-SST/**/
 baselines/GraphWiz/**/
 baselines/molecularNet/**/
 baselines/repos
+**/slurm_logs/
