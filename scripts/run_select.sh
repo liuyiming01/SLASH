@@ -1,13 +1,11 @@
-set -euo pipefail
-
-REPO_ROOT="/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens"
+REPO_ROOT="/home/lym/LLM-Research/Attention/Graph_Attention/SLASH"
 
 export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
 
 export CUDA_VISIBLE_DEVICES=0,1
 
 GRAPHWIZ_DIR="/home/lym/data1/Datasets/GraphWiz/GraphInstruct-Test"
-GRAPHSST_ROOT="/home/lym/data1/Datasets/Graph-SST"   # DIG root
+GRAPHSST_ROOT="/home/lym/data1/Datasets/Graph-SST"
 OUT_DIR="../outputs/select4.0"
 
 MODELS=(

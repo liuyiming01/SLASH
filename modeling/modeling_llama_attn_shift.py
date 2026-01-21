@@ -8,7 +8,7 @@ from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_outputs import BaseModelOutputWithPast
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
-from .AttnShifter_1224 import AttnShifter
+from .SlashAttnModifier import SlashAttnModifier
 
 """
 Modified functions:
@@ -18,9 +18,9 @@ Modified functions:
 - LlamaModel_forward
 """
 
-def get_modified_forward_llama(layers_heads_to_modify=None, delta_ratio=0.4, first_token_idx=0):
+def get_modified_forward_llama(layers_heads_to_modify=None, gamma=0.6, first_token_idx=0):
 
-    shifter = AttnShifter(layers_heads_to_modify, delta_ratio, first_token_idx)
+    modifier = SlashAttnModifier(layers_heads_to_modify, gamma, first_token_idx)
 
     def eager_attention_forward(
         module: nn.Module,
@@ -62,7 +62,7 @@ def get_modified_forward_llama(layers_heads_to_modify=None, delta_ratio=0.4, fir
             # plt.savefig("attn_head0_heatmap_0.png")
             # plt.close()
 
-            attn_weights = shifter.shift_probs(attn_weights, layer_to_modify)
+            attn_weights = modifier.modify_probs(attn_weights, layer_to_modify)
 
             # mat2 = attn_weights[0, 0].to(torch.float32).detach().cpu().numpy()  # 取 batch0, head0
             # mat3 = mat2 - mat1

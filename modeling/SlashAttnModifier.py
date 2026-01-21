@@ -2,33 +2,37 @@ import torch
 from typing import Optional, List, Dict, Union
 
 
-class AttnShifter:
+class SlashAttnModifier:
     """
-    Extremely optimized attention probability shifter (eager-only friendly).
+    Extremely optimized attention probability modifier for Slash (Structural Attention Sharpening).
 
     Assumptions (match your observation in eager):
     - masked (padding / causal future) key columns become exactly 0 after softmax, so we can infer pad_len
       and avoid redistributing into illegal keys without building masks.
+
+    Args:
+        layers_heads_to_modify: Which layers/heads to apply the modification.
+        gamma: The coefficient for the modified sink score (corresponds to γ in the paper).
+        first_token_idx: The offset(s) of the source token(s) to modify.
     """
 
     def __init__(
         self,
         layers_heads_to_modify: Optional[Dict[str, List[int]]] = None,
-        delta_ratio: float = 0.4,
+        gamma: float = 0.6,
         first_token_idx: Union[int, List[int]] = 0,
     ):
         self.layers_heads_to_modify = layers_heads_to_modify
-        self.delta_ratio = float(delta_ratio)
+        self.gamma = float(gamma)
         # safety: keep within [0, 1] to avoid negative probs at src
-        if self.delta_ratio < 0.0:
-            self.delta_ratio = 0.0
-        if self.delta_ratio > 1.0:
-            self.delta_ratio = 1.0
+        if self.gamma < 0.0:
+            self.gamma = 0.0
+        if self.gamma > 1.0:
+            self.gamma = 1.0
 
         self.first_token_idx = first_token_idx  # int preferred for fast path
 
         # if masked cols are not strictly 0, set to e.g. 1e-8 for bf16/fp16
-        # self.zero_eps = 0.0
         self.zero_eps = 1e-8
 
         # avoid div-by-zero / degenerate rows
@@ -66,14 +70,15 @@ class AttnShifter:
         return hs == list(range(hs[0], hs[-1] + 1))
 
     @torch.no_grad()
-    def _shift_inplace_single_source_bhqk(
+    def _modify_inplace_single_source_bhqk(
         self,
         attn: torch.Tensor,          # view: [B, h, Q, K]
         pad_len: torch.Tensor,       # [B]
         first_token_idx: int,
     ) -> None:
         """
-        In-place shift for a single source column using scalar-factor scaling.
+        In-place modification for a single source column using scalar-factor scaling.
+        Implements: p_s' = p_s * gamma, and redistribute (1-gamma)*p_s to other legal columns.
         """
         B, h, Q, K = attn.shape
         device = attn.device
@@ -100,7 +105,7 @@ class AttnShifter:
         valid_q = (q_pos >= pad_len.view(B, 1, 1))                     # [B,1,Q]
 
         # compute redistribution
-        redistribute = (self.delta_ratio * src_prob).to(dtype)         # [B,h,Q]
+        redistribute = ((1.0 - self.gamma) * src_prob).to(dtype)       # [B,h,Q]
 
         # valid rows must have denom > 0 and be non-padding row and have valid src
         ok = (denom > self.min_denom) & valid_q & valid_src.view(B, 1, 1)
@@ -118,7 +123,7 @@ class AttnShifter:
         attn.scatter_add_(dim=-1, index=gather_idx, src=-correction.unsqueeze(-1))
 
     @torch.no_grad()
-    def _shift_inplace_multi_source_bhqk(
+    def _modify_inplace_multi_source_bhqk(
         self,
         attn: torch.Tensor,          # view: [B, h, Q, K]
         pad_len: torch.Tensor,       # [B]
@@ -127,7 +132,7 @@ class AttnShifter:
         """
         Multi-source version:
         For each source column s in S:
-          p_s' = p_s * (1 - delta_ratio)
+          p_s' = p_s * gamma
         Redistribute total removed mass to other legal (non-padding, non-source) columns proportionally.
 
         Implemented via: scale whole row by (1+factor), then scatter-correct each source column.
@@ -167,7 +172,7 @@ class AttnShifter:
         q_pos = torch.arange(Q, device=device).view(1, 1, Q)           # [1,1,Q]
         valid_q = (q_pos >= pad_len.view(B, 1, 1))                     # [B,1,Q]
 
-        redistribute_total = (self.delta_ratio * sum_src_prob).to(dtype)  # [B,h,Q]
+        redistribute_total = ((1.0 - self.gamma) * sum_src_prob).to(dtype)  # [B,h,Q]
 
         ok = (denom > self.min_denom) & valid_q & (redistribute_total > 0)
         if not ok.any():
@@ -180,9 +185,9 @@ class AttnShifter:
         attn.mul_(1.0 + factor.unsqueeze(-1))
 
         # 2) correct each source column:
-        # after scaling, src became p_s*(1+factor), but we want p_s*(1-delta_ratio)
-        # subtract p_s*(factor + delta_ratio)
-        correction_per_source = src_prob * (factor.unsqueeze(-1) + self.delta_ratio)  # [B,h,Q,L]
+        # after scaling, src became p_s*(1+factor), but we want p_s*gamma
+        # subtract p_s*(factor + (1-gamma))
+        correction_per_source = src_prob * (factor.unsqueeze(-1) + (1.0 - self.gamma))  # [B,h,Q,L]
 
         # scatter subtract per source (L is typically small; avoids big masks)
         for l in range(L):
@@ -191,17 +196,16 @@ class AttnShifter:
             attn.scatter_add_(dim=-1, index=idx_l, src=-corr_l.unsqueeze(-1))
 
     @torch.no_grad()
-    def shift_probs(self, attn_weights: torch.Tensor, layer_to_modify: int) -> torch.Tensor:
+    def modify_probs(self, attn_weights: torch.Tensor, layer_to_modify: int) -> torch.Tensor:
         """
         attn_weights: [B, H, Q, K] (softmaxed)
-        Extremely optimized in-place shift.
+        Extremely optimized in-place modification.
         """
-        if self.delta_ratio == 0.0:
+        if self.gamma == 1.0:
             return attn_weights
 
         B, H, Q, K = attn_weights.shape
 
-        # Prefill (prompt) has Q>1, so intervention only happens there.
         if Q == 1:
             return attn_weights
         
@@ -216,9 +220,9 @@ class AttnShifter:
         # Head selection without forcing a copy when possible
         if len(heads) == H:
             if isinstance(self.first_token_idx, int):
-                self._shift_inplace_single_source_bhqk(attn_weights, pad_len, self.first_token_idx)
+                self._modify_inplace_single_source_bhqk(attn_weights, pad_len, self.first_token_idx)
             else:
-                self._shift_inplace_multi_source_bhqk(attn_weights, pad_len, list(self.first_token_idx))
+                self._modify_inplace_multi_source_bhqk(attn_weights, pad_len, list(self.first_token_idx))
             return attn_weights
 
         if self._is_contiguous(heads):
@@ -226,16 +230,16 @@ class AttnShifter:
             sl = slice(hs[0], hs[-1] + 1)
             attn_view = attn_weights[:, sl, :, :]  # view
             if isinstance(self.first_token_idx, int):
-                self._shift_inplace_single_source_bhqk(attn_view, pad_len, self.first_token_idx)
+                self._modify_inplace_single_source_bhqk(attn_view, pad_len, self.first_token_idx)
             else:
-                self._shift_inplace_multi_source_bhqk(attn_view, pad_len, list(self.first_token_idx))
+                self._modify_inplace_multi_source_bhqk(attn_view, pad_len, list(self.first_token_idx))
             return attn_weights
 
         # Non-contiguous: loop heads to avoid advanced-indexing copy
         for h in heads:
             attn_view = attn_weights[:, h:h + 1, :, :]  # view [B,1,Q,K]
             if isinstance(self.first_token_idx, int):
-                self._shift_inplace_single_source_bhqk(attn_view, pad_len, self.first_token_idx)
+                self._modify_inplace_single_source_bhqk(attn_view, pad_len, self.first_token_idx)
             else:
-                self._shift_inplace_multi_source_bhqk(attn_view, pad_len, list(self.first_token_idx))
+                self._modify_inplace_multi_source_bhqk(attn_view, pad_len, list(self.first_token_idx))
         return attn_weights

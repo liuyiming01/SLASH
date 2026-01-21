@@ -12,7 +12,7 @@ from transformers.utils import logging
 # Qwen3 helpers (must match runtime HF package, not your generated reference copy)
 from transformers.models.qwen3.modeling_qwen3 import apply_rotary_pos_emb, repeat_kv
 
-from .AttnShifter_1224 import AttnShifter
+from .SlashAttnModifier import SlashAttnModifier
 
 logger = logging.get_logger(__name__)
 
@@ -25,8 +25,8 @@ Modified functions (Qwen3):
 """
 
 
-def get_modified_forward_qwen3(layers_heads_to_modify=None, delta_ratio=0.4, first_token_idx=0):
-    shifter = AttnShifter(layers_heads_to_modify, delta_ratio, first_token_idx)
+def get_modified_forward_qwen3(layers_heads_to_modify=None, gamma=0.6, first_token_idx=0):
+    modifier = SlashAttnModifier(layers_heads_to_modify, gamma, first_token_idx)
 
     def eager_attention_forward(
         module: nn.Module,
@@ -57,7 +57,7 @@ def get_modified_forward_qwen3(layers_heads_to_modify=None, delta_ratio=0.4, fir
 
         # ###############BEGIN: MODIFICATION###############
         if layer_to_modify is not None:
-            attn_weights = shifter.shift_probs(attn_weights, layer_to_modify)
+            attn_weights = modifier.modify_probs(attn_weights, layer_to_modify)
         # ################END: MODIFICATION################
 
         attn_output = torch.matmul(attn_weights, value_states)
@@ -96,7 +96,6 @@ def get_modified_forward_qwen3(layers_heads_to_modify=None, delta_ratio=0.4, fir
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
         # ###############BEGIN: MODIFICATION###############
-        # If we need to shift attention probs, we must force eager to access attn_weights.
         attention_interface: Callable = eager_attention_forward
         if layer_to_modify is None:
             if self.config._attn_implementation != "eager":

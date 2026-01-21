@@ -176,7 +176,7 @@ cython_debug/
 # custom .gitignore
 tests
 outputs
-modeling/references
+modeling_old_v1
 src/slash/entropy_old.py
 src/slash/refresh_intersections.py
 src/slash/viz/token_test.py
