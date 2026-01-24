@@ -11,7 +11,7 @@ from .utils import count_edges_in_prompt, standardize_prompt_edges
 # ============================================================
 # MolecularNet helpers (reuse baselines/molecularNet/utils.py)
 # ============================================================
-
+REPO_ROOT = "/home/lym/LLM-Research/SLASH"
 _MOL_UTILS = None
 
 def _import_molecularnet_utils():
@@ -24,7 +24,7 @@ def _import_molecularnet_utils():
 
     import importlib.util
 
-    util_path = "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH/baselines/molecularNet/utils.py"
+    util_path = f"{REPO_ROOT}/baselines/molecularNet/utils.py"
     if not os.path.exists(util_path):
         raise FileNotFoundError(f"Cannot find MolecularNet utils.py at: {util_path}")
 
@@ -50,19 +50,13 @@ def molecularnet_iter_task_label_ids(task_spec: Optional[str] = None) -> List[Tu
     task_spec examples:
       - None / ""      -> all MolecularNet tasks
       - "BACE"         -> only BACE
-      - "Tox21__NR-AR" -> (backward-compatible) treated as "Tox21" (label part ignored)
     """
     m = _import_molecularnet_utils()
     tasks = m.TASKS  # dict
 
-    want_task = None
-    if task_spec:
-        # backward-compatible: ignore "__label" suffix
-        want_task = task_spec.split("__", 1)[0]
-
-    out: List[Tuple[str, str, str]] = []
+    out = []
     for tname, spec in tasks.items():
-        if want_task and str(tname) != str(want_task):
+        if task_spec and str(tname) != str(task_spec):
             continue
 
         tname = str(tname)

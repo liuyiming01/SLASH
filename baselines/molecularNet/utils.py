@@ -118,10 +118,94 @@ def resolve_csv_paths(data_dir: str, task: str) -> Tuple[Optional[str], str]:
 
     raise FileNotFoundError(f"Cannot find *_test.csv for task={task} under {data_dir}")
 
+# -----------------------------
+# Prompt formatting (graph)
+# -----------------------------
+def _format_example_graph(
+    task: str,
+    label_col: str,
+    graph_text: str,
+    label_yesno: str,
+    extra: Optional[Dict[str, str]] = None,
+) -> str:
+    extra = extra or {}
 
-# -----------------------------
-# Graph serialization (SMILES -> text)
-# -----------------------------
+    if task == "BACE":
+        return f"Graph: {graph_text}\nBACE-1 Inhibit: {label_yesno}\n"
+    if task == "BBBP":
+        return f"Graph: {graph_text}\nBBBP Penetration: {label_yesno}\n"
+    if task == "HIV":
+        act = extra.get("activity", "")
+        act_line = f"Activity test result: {act}\n" if act else ""
+        return f"Graph: {graph_text}\n{act_line}HIV Inhibit: {label_yesno}\n"
+    if task == "ClinTox":
+        fda = yesno_from_label(extra.get("FDA_APPROVED"))
+        fda_line = f"FDA Approved: {fda}\n" if fda in {"Yes", "No"} else ""
+        return f"Graph: {graph_text}\n{fda_line}Clinically-trial-toxic: {label_yesno}\n"
+    if task == "Tox21":
+        return f"Graph: {graph_text}\nToxic: {label_yesno}\n"
+
+    return f"Graph: {graph_text}\nLabel: {label_yesno}\n"
+
+
+def _format_query_graph(
+    task: str,
+    graph_text: str,
+    extra: Optional[Dict[str, str]] = None,
+) -> str:
+    extra = extra or {}
+
+    if task == "BACE":
+        return f"Molecular Graph: {graph_text}\nPlease answer with only Yes or No.\nBACE-1 Inhibit:"
+
+    if task == "BBBP":
+        return f"Molecular Graph: {graph_text}\nPlease answer with only Yes or No.\nPenetration:"
+    
+    if task == "HIV":
+        act = extra.get("activity", "")
+        # act_line = f"Activity test result: {act}\n" if act else ""
+        act_line = ""
+        return f"Molecular Graph: {graph_text}\n{act_line}Please answer with only Yes or No.\nHIV Inhibit:"
+
+    if task == "ClinTox":
+        fda = yesno_from_label(extra.get("FDA_APPROVED"))
+        # fda_line = f"FDA Approved: {fda}\n" if fda in {"Yes", "No"} else ""
+        fda_line = ""
+        return f"Molecular Graph: {graph_text}\n{fda_line}Clinically-trial-toxic:"
+
+    if task == "Tox21":
+        return f"Molecular Graph: {graph_text}\nToxic:"
+
+    raise ValueError(f"Unknown task: {task}")
+
+
+def build_graph_prompt(
+    base_prompt: str,
+    task: str,
+    label_col: str,
+    graph_text: str,
+    shot_examples: List[Tuple[str, str, Dict[str, str]]],  # (graph_text, Yes/No, extra)
+    extra: Optional[Dict[str, str]] = None,
+) -> str:
+    # parts = [base_prompt.strip()]
+    # for ex_graph, ex_label, ex_extra in shot_examples:
+    #     parts.append(_format_example_graph(task, ex_graph, ex_label, ex_extra).strip())
+
+    # parts.append(_format_query_graph(task, graph_text, extra).strip())
+    # return "\n".join(parts).strip() + "\n"
+    return base_prompt + _format_query_graph(task, graph_text, extra).strip()
+
+
+def row_extra(spec: Dict[str, object], row: pd.Series) -> Dict[str, str]:
+    extra: Dict[str, str] = {}
+    for c in (spec.get("extra_cols") or []):
+        v = row.get(c)
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            continue
+        extra[str(c)] = str(v)
+    return extra
+
+
 def smiles_to_graph_text(smiles: str, weighted_edges: bool = False) -> Optional[str]:
     """
     Convert SMILES to the custom graph description string.
@@ -161,99 +245,17 @@ def smiles_to_graph_text(smiles: str, weighted_edges: bool = False) -> Optional[
     n = mol.GetNumAtoms()
     if weighted_edges:
         return (
-            f"The nodes are numbered from 0 to {n - 1}, weights of nodes (atomic numbers) are:\n"
+            f"Nodes are numbered from 0 to {n - 1} with atomic numbers:\n"
             f"{' '.join(node_parts)}\n"
-            f"and the edges (with bond order) are:\n"
+            f"Edges (with bond order) are:\n"
             f"{' '.join(edge_parts)}"
         )
     return (
-        f"The nodes are numbered from 0 to {n - 1}, weights of nodes (atomic numbers) are:\n"
+        f"Nodes are numbered from 0 to {n - 1} with atomic numbers:\n"
         f"{' '.join(node_parts)}\n"
-        f"and the edges are:\n"
+        f"Edges are:\n"
         f"{' '.join(edge_parts)}"
     )
-
-
-# -----------------------------
-# Prompt formatting (graph)
-# -----------------------------
-def _format_example_graph(
-    task: str,
-    label_col: str,
-    graph_text: str,
-    label_yesno: str,
-    extra: Optional[Dict[str, str]] = None,
-) -> str:
-    extra = extra or {}
-
-    if task == "BACE":
-        return f"Graph: {graph_text}\nBACE-1 Inhibit: {label_yesno}\n"
-    if task == "BBBP":
-        return f"Graph: {graph_text}\nBBBP Penetration: {label_yesno}\n"
-    if task == "HIV":
-        act = extra.get("activity", "")
-        act_line = f"Activity test result: {act}\n" if act else ""
-        return f"Graph: {graph_text}\n{act_line}HIV Inhibit: {label_yesno}\n"
-    if task == "ClinTox":
-        fda = yesno_from_label(extra.get("FDA_APPROVED"))
-        fda_line = f"FDA Approved: {fda}\n" if fda in {"Yes", "No"} else ""
-        return f"Graph: {graph_text}\n{fda_line}Clinically-trial-toxic: {label_yesno}\n"
-    if task == "Tox21":
-        return f"Graph: {graph_text}\nToxic: {label_yesno}\n"
-
-    return f"Graph: {graph_text}\nLabel: {label_yesno}\n"
-
-
-def _format_query_graph(
-    task: str,
-    label_col: str,
-    graph_text: str,
-    extra: Optional[Dict[str, str]] = None,
-) -> str:
-    extra = extra or {}
-
-    if task == "BACE":
-        return f"Graph: {graph_text}\nBACE-1 Inhibit:"
-    if task == "BBBP":
-        return f"Graph: {graph_text}\nBBBP Penetration:"
-    if task == "HIV":
-        act = extra.get("activity", "")
-        act_line = f"Activity test result: {act}\n" if act else ""
-        return f"Graph: {graph_text}\n{act_line}HIV Inhibit:"
-    if task == "ClinTox":
-        fda = yesno_from_label(extra.get("FDA_APPROVED"))
-        fda_line = f"FDA Approved: {fda}\n" if fda in {"Yes", "No"} else ""
-        return f"Graph: {graph_text}\n{fda_line}Clinically-trial-toxic:"
-    if task == "Tox21":
-        return f"Graph: {graph_text}\nToxic:"
-
-    return f"Graph: {graph_text}\nLabel:"
-
-
-def build_graph_prompt(
-    base_prompt: str,
-    task: str,
-    label_col: str,
-    graph_text: str,
-    shot_examples: List[Tuple[str, str, Dict[str, str]]],  # (graph_text, Yes/No, extra)
-    extra: Optional[Dict[str, str]] = None,
-) -> str:
-    parts = [base_prompt.strip()]
-    for ex_graph, ex_label, ex_extra in shot_examples:
-        parts.append(_format_example_graph(task, label_col, ex_graph, ex_label, ex_extra).strip())
-    parts.append(_format_query_graph(task, label_col, graph_text, extra).strip())
-    return "\n".join(parts).strip() + "\n"
-
-
-def row_extra(spec: Dict[str, object], row: pd.Series) -> Dict[str, str]:
-    extra: Dict[str, str] = {}
-    for c in (spec.get("extra_cols") or []):
-        v = row.get(c)
-        if v is None or (isinstance(v, float) and np.isnan(v)):
-            continue
-        extra[str(c)] = str(v)
-    return extra
-
 
 def sample_shots_graph_from_df(
     df: pd.DataFrame,
@@ -270,60 +272,61 @@ def sample_shots_graph_from_df(
 
     Returns: List[(graph_text, "Yes"/"No", extra_dict)]
     """
-    if shot <= 0 or df is None or len(df) == 0:
-        return []
+    raise NotImplementedError("sample_shots_graph_from_df is disabled.")
+    # if shot <= 0 or df is None or len(df) == 0:
+    #     return []
 
-    smiles_col = str(spec["smiles_col"])
-    rng = random.Random(int(seed) + (int(exclude_idx) if exclude_idx is not None else 0))
+    # smiles_col = str(spec["smiles_col"])
+    # rng = random.Random(int(seed) + (int(exclude_idx) if exclude_idx is not None else 0))
 
-    # collect valid candidates (by label + smiles), excluding current idx
-    yes_candidates: List[int] = []
-    no_candidates: List[int] = []
+    # # collect valid candidates (by label + smiles), excluding current idx
+    # yes_candidates: List[int] = []
+    # no_candidates: List[int] = []
 
-    for i in range(len(df)):
-        if exclude_idx is not None and int(i) == int(exclude_idx):
-            continue
-        row = df.iloc[i]
-        yn = yesno_from_label(row.get(label_col))
-        smi = str(row.get(smiles_col, "")).strip()
-        if yn is None or not smi:
-            continue
-        if yn == "Yes":
-            yes_candidates.append(i)
-        else:
-            no_candidates.append(i)
+    # for i in range(len(df)):
+    #     if exclude_idx is not None and int(i) == int(exclude_idx):
+    #         continue
+    #     row = df.iloc[i]
+    #     yn = yesno_from_label(row.get(label_col))
+    #     smi = str(row.get(smiles_col, "")).strip()
+    #     if yn is None or not smi:
+    #         continue
+    #     if yn == "Yes":
+    #         yes_candidates.append(i)
+    #     else:
+    #         no_candidates.append(i)
 
-    if not yes_candidates and not no_candidates:
-        return []
+    # if not yes_candidates and not no_candidates:
+    #     return []
 
-    # choose indices with a simple class-balance heuristic when possible
-    chosen: List[int] = []
-    if shot >= 2 and yes_candidates and no_candidates:
-        k_yes = shot // 2
-        k_no = shot - k_yes
-        rng.shuffle(yes_candidates)
-        rng.shuffle(no_candidates)
-        chosen = yes_candidates[:k_yes] + no_candidates[:k_no]
-        rng.shuffle(chosen)
-    else:
-        all_candidates = yes_candidates + no_candidates
-        rng.shuffle(all_candidates)
-        chosen = all_candidates[:shot]
+    # # choose indices with a simple class-balance heuristic when possible
+    # chosen: List[int] = []
+    # if shot >= 2 and yes_candidates and no_candidates:
+    #     k_yes = shot // 2
+    #     k_no = shot - k_yes
+    #     rng.shuffle(yes_candidates)
+    #     rng.shuffle(no_candidates)
+    #     chosen = yes_candidates[:k_yes] + no_candidates[:k_no]
+    #     rng.shuffle(chosen)
+    # else:
+    #     all_candidates = yes_candidates + no_candidates
+    #     rng.shuffle(all_candidates)
+    #     chosen = all_candidates[:shot]
 
-    # build outputs (skip invalid RDKit conversions)
-    out: List[Tuple[str, str, Dict[str, str]]] = []
-    for i in chosen:
-        row = df.iloc[i]
-        smi = str(row.get(smiles_col, "")).strip()
-        yn = yesno_from_label(row.get(label_col))
-        if yn is None or not smi:
-            continue
+    # # build outputs (skip invalid RDKit conversions)
+    # out: List[Tuple[str, str, Dict[str, str]]] = []
+    # for i in chosen:
+    #     row = df.iloc[i]
+    #     smi = str(row.get(smiles_col, "")).strip()
+    #     yn = yesno_from_label(row.get(label_col))
+    #     if yn is None or not smi:
+    #         continue
 
-        g = smiles_to_graph_text(smi, weighted_edges=weighted_edges)
-        if not g:
-            continue
+    #     g = smiles_to_graph_text(smi, weighted_edges=weighted_edges)
+    #     if not g:
+    #         continue
 
-        extra = row_extra(spec, row)
-        out.append((g, yn, extra))
+    #     extra = row_extra(spec, row)
+    #     out.append((g, yn, extra))
 
-    return out
+    # return out

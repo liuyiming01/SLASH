@@ -130,7 +130,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
     graphsst = cfg.get("graphsst", None)
     molecularnet = cfg.get("molecularnet", None)
 
-    # ========== MolecularNet专用分支 ==========
+    # ========== MolecularNet分支 ==========
     if molecularnet is not None:
         preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
         hard_max_edges = cfg.get("hard_max_edges", None)
@@ -277,7 +277,8 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
 
         for i, row in enumerate(tqdm(samples.itertuples(index=False), total=len(samples), desc=f"[{task_name}] Entropy")):
             prompt = getattr(row, input_column)
-
+            prompt = standardize_prompt_edges(prompt)
+            print(i, prompt)
             enc = tokenizer(prompt, return_tensors="pt").to(model.device)
             if enc.input_ids.shape[1] > max_seq_len:
                 enc.input_ids = enc.input_ids[:, :max_seq_len]
@@ -384,7 +385,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="GraphLens: matrix-based entropy on attention")
+    p = argparse.ArgumentParser(description="SLASH: matrix-based entropy on attention")
 
     p.add_argument("--model_path", type=str, required=True)
     p.add_argument("--task_name", type=str, required=True)

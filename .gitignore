@@ -179,9 +179,9 @@ outputs
 modeling_old_v1
 src/slash/entropy_old.py
 src/slash/refresh_intersections.py
-src/slash/viz/token_test.py
+src/slash/viz
 baselines/Graph-SST/**/
 baselines/GraphWiz/**/
-baselines/molecularNet/**/
+baselines/molecularNet/outputs
 baselines/repos
 **/slurm_logs/

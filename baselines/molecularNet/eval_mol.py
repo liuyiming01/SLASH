@@ -25,7 +25,7 @@ from utils import (
     yesno_from_label,
 )
 
-
+REPO_ROOT = "/home/lym/LLM-Research/SLASH"
 # NEW: allow importing SLASH helpers (edge-range sampling)
 _SLASH_IMPORTED = False
 def _try_import_slash():
@@ -34,7 +34,7 @@ def _try_import_slash():
         return True
     try:
         # repo root: .../SLASH ; package path: SLASH/src
-        repo_root = "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH"
+        repo_root = REPO_ROOT
         src_path = os.path.join(repo_root, "src")
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
@@ -131,11 +131,11 @@ def _compute_metrics_from_pred_jsonl(pred_path: str) -> Dict[str, float]:
     total = float(len(y_true))
     return {"accuracy": acc, "f1": f1, "total": total, "correct": correct, "invalid": float(invalid)}
 
-def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
+def MODIFICATION(model, layers_heads_to_modify, gamma, first_token_idx=0):
     import sys
     import types
 
-    sys.path.insert(0, "/home/lym/LLM-Research/Attention/Graph_Attention/SLASH")
+    sys.path.insert(0, REPO_ROOT)
 
     model_type = getattr(getattr(model, "config", None), "model_type", None)
     model_name = model.__class__.__name__.lower()
@@ -149,7 +149,7 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
         LlamaModel_forward, LlamaDecoderLayer_forward, LlamaAttention_forward = (
             modeling_llama_attn_shift.get_modified_forward_llama(
                 layers_heads_to_modify=layers_heads_to_modify,
-                delta_ratio=delta_ratio,
+                gamma=gamma,
                 first_token_idx=first_token_idx,
             )
         )
@@ -164,7 +164,7 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
         Qwen3Model_forward, Qwen3DecoderLayer_forward, Qwen3Attention_forward = (
             modeling_qwen3_attn_shift.get_modified_forward_qwen3(
                 layers_heads_to_modify=layers_heads_to_modify,
-                delta_ratio=delta_ratio,
+                gamma=gamma,
                 first_token_idx=first_token_idx,
             )
         )
@@ -284,16 +284,16 @@ def eval_task(
                 extras.append(extra)
 
                 # few-shot still samples from the SAME eval dataframe (test_df), excluding current row i
-                shot_examples = sample_shots_graph_from_df(
-                    df=test_df,
-                    spec=spec,
-                    label_col=label_col,
-                    shot=int(args.shot),
-                    seed=int(args.seed),
-                    exclude_idx=int(i),
-                    weighted_edges=weighted_edges,
-                )
-
+                # shot_examples = sample_shots_graph_from_df(
+                #     df=test_df,
+                #     spec=spec,
+                #     label_col=label_col,
+                #     shot=int(args.shot),
+                #     seed=int(args.seed),
+                #     exclude_idx=int(i),
+                #     weighted_edges=weighted_edges,
+                # )
+                shot_examples = []
                 prompts.append(
                     build_graph_prompt(
                         base_prompt,
@@ -314,7 +314,7 @@ def eval_task(
                 temperature=args.temperature,
             )
 
-            for i, out, gt, g, extra in zip(batch_idx, outs, truths, graphs, extras):
+            for i, out, prompt, gt, g, extra in zip(batch_idx, outs, prompts, truths, graphs, extras):
                 pred = parse_yesno(out)
                 wf.write(
                     json.dumps(
@@ -327,7 +327,7 @@ def eval_task(
                             "prediction": pred,
                             "raw_output": out,
                             "edge_range_tag": (edge_range_tag or ""),
-                            "graph_text": g,
+                            "prompt": prompt,
                             "extra": extra,
                             "shot": int(args.shot),
                         },
@@ -376,7 +376,7 @@ def main():
 
     parser.add_argument("--layer_head_config_path", type=str, default=None)
     parser.add_argument("--layers_to_modify", type=int, nargs="+", default=None)
-    parser.add_argument("--delta_ratio", type=float, default=0.4)
+    parser.add_argument("--gamma", type=float, default=0.4)
 
     args = parser.parse_args()
     weighted_edges = args.graph_mode == "weighted"
@@ -421,7 +421,7 @@ def main():
 
     if layers_heads_to_modify:
         print(f"Applying modifications for layers: {list(layers_heads_to_modify.keys())}")
-        MODIFICATION(model, layers_heads_to_modify, float(args.delta_ratio))
+        MODIFICATION(model, layers_heads_to_modify, float(args.gamma))
 
     pure_model = os.path.basename(args.model_path.rstrip("/"))
     shot_tag = f"shot{int(args.shot)}"
@@ -432,10 +432,10 @@ def main():
     if mod_mode == "none":
         save_dir = os.path.join(base_dir, "test")
     elif mod_mode == "config":
-        save_dir = os.path.join(base_dir, f"modified_delta{args.delta_ratio}")
+        save_dir = os.path.join(base_dir, f"modified_gamma{args.gamma}")
     else:
         layer_tag = "_".join(str(l) for l in args.layers_to_modify)
-        save_dir = os.path.join(base_dir, f"delta{args.delta_ratio}_{layer_tag}")
+        save_dir = os.path.join(base_dir, f"gamma{args.gamma}_{layer_tag}")
 
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
