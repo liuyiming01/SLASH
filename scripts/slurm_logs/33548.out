@@ -1,5 +1,0 @@
-[run_select] (GraphWiz) model=Meta-Llama-3.1-8B-Instruct -> ../outputs/select3.1/Meta-Llama-3.1-8B-Instruct
-Loading model from /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct ...
-Filtered samples count: 400
-[cycle] TRUE edge stats: min=1, max=301, median=59.0, n=400
-[cycle] CHOSEN edge range: [116, 151], used_preferred_min=True, mode=median_center_window
