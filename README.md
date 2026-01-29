@@ -18,7 +18,7 @@ Large Language Models (LLMs) spontaneously reconstruct graph topology internally
 pip install -r requirements.txt
 ```
 
-## Reproducing Experiments
+## Run SLASH
 
 ### 1. Offline Phase: Head Identification & Calibration
 
