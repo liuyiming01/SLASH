@@ -10,7 +10,7 @@ from .utils import count_edges_in_prompt, standardize_prompt_edges
 
 # MolecularNet
 
-REPO_ROOT = "../../"
+REPO_ROOT = "SLASH"
 _MOL_UTILS = None
 
 def _import_molecularnet_utils():
