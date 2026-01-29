@@ -190,3 +190,4 @@ baselines/molecularNet/*.ipynb
 baselines/repos/
 **/slurm_logs/
 *.slurm
+baselines/molecularNet/plot.ipynb
