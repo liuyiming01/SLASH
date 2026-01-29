@@ -1,7 +1,3 @@
-好的，这是一份根据您的论文草稿为您生成的 GitHub `README.md` 文件。它凝练了您工作的核心思想，并为代码复现预留了清晰的结构。
-
----
-
 # Slash the Sink: Sharpening Structural Attention Inside LLMs
 
 This is the official PyTorch implementation for the paper **"Slash the Sink: Sharpening Structural Attention Inside LLMs"**.
