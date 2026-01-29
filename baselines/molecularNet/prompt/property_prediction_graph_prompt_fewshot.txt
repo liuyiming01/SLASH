@@ -1,8 +1,0 @@
-BACE: prompt = "You are an expert chemist. Your task is to predict the property of a molecule based on its graph structure representation.\n\
-In this representation:\n\
-- Atoms are nodes numbered from 0 to N.\n\
-- [i, w] means node i has atomic number w.\n\
-- (i, j) means node i and node j are connected by a chemical bond.\n\
-You will be given a template and possibly several examples in this graph format.\n\
-The task is to predict whether the molecule can inhibit BACE-1 (Yes) or cannot inhibit BACE-1 (No).\n\
-Please strictly follow the format and answer with only Yes or No.\n"

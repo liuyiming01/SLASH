@@ -19,7 +19,7 @@ from .datasets import (
 
 def _init_score_accumulators(score_mode: str, num_layers: int, num_heads: int):
     """
-    初始化打分累加器，支持 per_head / per_layer 两种模式。
+    per_head / per_layer
     """
     if score_mode == "per_head":
         score_sum = np.zeros((num_layers, num_heads), dtype=np.float32)
@@ -42,10 +42,8 @@ def _score_single_example(
     num_heads: int,
 ):
     """
-    对单个样本进行：
-      1) span & ideal_mask 构建
-      2) 前向推理获取 attention
-      3) 根据 score_mode 更新累加器
+      1) span & ideal_mask
+      2) attention
     """
     if cfg.get("standardize_prompt", True):
         prompt = standardize_prompt_edges(prompt)
@@ -65,7 +63,6 @@ def _score_single_example(
     local_spans = build_local_spans(g_start, spans_sorted)
     ideal_mask = build_sawtooth_mask(span_len, local_spans)
 
-    # 前向
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
     if enc.input_ids.shape[1] > max_seq_len:
         enc.input_ids = enc.input_ids[:, :max_seq_len]
@@ -73,22 +70,20 @@ def _score_single_example(
             enc.attention_mask = enc.attention_mask[:, :max_seq_len]
 
     out = model(enc.input_ids, output_attentions=True, use_cache=False)
-    attn_list = out.attentions  # list of length L, each: [batch, H, S, S]
+    attn_list = out.attentions  # [batch, H, S, S]
 
-    # 检查长度是否足够
     seq_len = attn_list[0].shape[-1]
     # print(f"    Sample seq_len: {seq_len}, graph span: [{g_start}, {g_end}], span_len: {span_len}")
     if seq_len <= g_end:
         del out
         return
 
-    # ---------- 打分 ----------
     if score_mode == "per_head":
         score_sum = accumulators["score_sum"]
         score_cnt = accumulators["score_cnt"]
 
         for l in range(num_layers):
-            attn_layer = attn_list[l][0]  # [H, S, S] on model.device
+            attn_layer = attn_list[l][0]  # [H, S, S]
             attn_layer_roi = attn_layer[:, g_start:g_end + 1, g_start:g_end + 1] \
                 .to(torch.float32).cpu().numpy()  # [H, N, N]
 
@@ -147,9 +142,6 @@ def _aggregate_and_save(
     num_layers: int,
     num_heads: int,
 ):
-    """
-    将累加的分数聚合成平均值，保存 npz，并调用 utils 中的绘图函数。
-    """
     output_dir = cfg["output_dir"]
     score_mode = accumulators["mode"]
     sim_metric = cfg["sim_metric"]
@@ -274,9 +266,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
     preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
     hard_max_edges = cfg.get("hard_max_edges", None)
 
-    # ============================================================
-    # MolecularNet: auto edge_range + sample prompts, THEN scoring
-    # ============================================================
+    # MolecularNet
     if cfg.get("molecularnet", None) is not None:
         mn = cfg["molecularnet"]
 
@@ -341,12 +331,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             num_heads=num_heads,
         )
 
-    # ============================================================
-    # Non-MolecularNet: keep existing flow (GraphWiz / Graph-SST)
-    # ============================================================
-    # ------------------------------------------------------------
-    # 1) load full split (for edge stats & auto range)
-    # ------------------------------------------------------------
+    # GraphWiz
     all_df = load_and_filter_samples(
         data_path=cfg.get("data_path", None),
         input_column=input_column,
@@ -369,9 +354,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
         f"max={int(edge_counts.max())}, median={float(np.median(edge_counts)):.1f}, n={len(edge_counts)}"
     )
 
-    # ------------------------------------------------------------
-    # 2) 自动选择 min_edges/max_edges（满足 sample_num，且尽量靠近中位数）
-    # ------------------------------------------------------------
     preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
     hard_max_edges = cfg.get("hard_max_edges", None)
 
@@ -405,9 +387,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
         f"mode={stats.get('mode')}"
     )
 
-    # ------------------------------------------------------------
-    #  scoring 流程：基于 samples 迭代累加
-    # ------------------------------------------------------------
     num_layers = model.config.num_hidden_layers
     num_heads = model.config.num_attention_heads
     score_mode = cfg["score_mode"]
@@ -461,7 +440,6 @@ def parse_args():
     # Graph-SST specific
     p.add_argument("--split", type=str, default="test",
                    help="Graph-SST split: train/val/valid/test")
-    # 样本筛选
     p.add_argument("--sample_num", type=int, default=100,
                    help="Number of samples to use for scoring")
     p.add_argument("--min_edges", type=int, default=80,
@@ -471,16 +449,11 @@ def parse_args():
     p.add_argument("--min_max_degree", type=int, default=4,
                    help="Max degree of nodes in graph description")
 
-    # 模型推理相关
     p.add_argument("--max_seq_len", type=int, default=1000,
                    help="Max sequence length for model input")
-
-    # 打分模式
     p.add_argument("--score_mode", type=str, default="per_head",
                    choices=["per_head", "per_layer"],
                    help="Score per head or per layer")
-
-    # 相似度与二值化参数
     p.add_argument("--sim_metric", type=str, default="concentration",
                    help="Similarity metric between attention and adjacency template")
     p.add_argument("--binarize_method", type=str, default="threshold",
@@ -488,7 +461,6 @@ def parse_args():
     p.add_argument("--pre_threshold_frac", type=float, default=0.1,
                    help="Fraction for threshold-based binarization")
 
-    # 绘图配置
     p.add_argument("--plot_dpi", type=int, default=250,
                    help="DPI for saved figures")
     p.add_argument("--plot_line_color", type=str, default="C0",
@@ -558,7 +530,6 @@ def main():
             process_task(task, cfg, model, tokenizer)
 
     elif args.task_name in ("Graph-SST", "Graph-SST2", "Graph-SST5", "Graph-Twitter"):
-        # Graph-SST family: build prompts from DIG dataset
         if args.task_name == "Graph-SST":
             tasks = ["Graph-SST2", "Graph-SST5", "Graph-Twitter"]
         else:

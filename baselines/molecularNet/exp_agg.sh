@@ -1,32 +1,31 @@
-CUDA=0,3
+CUDA=2,4
 BATCH_SIZE=4
 MAX_NEW_TOKENS=10
 LIMIT=400
-OUTPUT_DIR=./outputs/Results3.2.3
+OUTPUT_DIR=./outputs/Results_other
 
 SCRIPT_PATH="$(realpath "$0")"
 mkdir -p "$OUTPUT_DIR"
 cp "$SCRIPT_PATH" "$OUTPUT_DIR/$(basename "$SCRIPT_PATH")"
 
-DATA_DIR="/home/lym/data1/Datasets/ChemLLMBench/data/property_prediction"
-PROMPT_PATH="./prompt/property_prediction_graph_prompt3.2.txt"
+DATA_DIR="ChemLLMBench/data/property_prediction"
+PROMPT_PATH="./prompt/property_prediction_graph_prompt.txt"
 
 # TASKS=(BACE BBBP ClinTox HIV Tox21)
-TASKS=(ClinTox)
+TASKS=(BBBP Tox21)
 MODELS=(
   # meta-llama/Meta-Llama-3.1-8B-Instruct
-  # Qwen/Qwen3-8B
+  Qwen/Qwen3-8B
   # meta-llama/Llama-3.2-3B-Instruct
   # YuyanLiu/merged_MolecularGPT
-  Qwen/Qwen3-4B
+  # Qwen/Qwen3-4B
   # Qwen/Qwen3-14B
 )
 
 SELECT_ROOT="SLASH/outputs/final_select/select1.2.1/MolecularNet"
 # GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
-GAMMA_VALUES=(0.2)
-
-EDGE_AGG_OPTIONS=(False)
+GAMMA_VALUES=(0.1)
+EDGE_AGG_OPTIONS=(False True)
 SPLIT_OPTIONS=(sample)
 
 for MODEL_PATH in "${MODELS[@]}"; do

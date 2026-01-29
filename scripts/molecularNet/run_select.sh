@@ -1,14 +1,13 @@
-REPO_ROOT="/home/lym/LLM-Research/SLASH"
+REPO_ROOT="SLASH"
 export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
-export CUDA_VISIBLE_DEVICES="0,3"
+export CUDA_VISIBLE_DEVICES="0"
 
-# MolecularNet CSV dir (should contain BACE.csv, BBBP.csv, etc.)
-DATA_DIR="/home/lym/data1/Datasets/ChemLLMBench/data/property_prediction"
-PROMPT_PATH="${REPO_ROOT}/baselines/molecularNet/prompt/property_prediction_graph_prompt3.1.txt"
-OUT_DIR="${REPO_ROOT}/outputs/final_select/select1.0/MolecularNet"
+DATA_DIR="ChemLLMBench/data/property_prediction"
+PROMPT_PATH="${REPO_ROOT}/baselines/molecularNet/prompt/property_prediction_graph_prompt.txt"
+OUT_DIR="${REPO_ROOT}/outputs/final_select/select_layer/MolecularNet"
 
 MODE="per_layer"
-SAMPLE_NUM=30
+SAMPLE_NUM=10
 MAX_SEQ_LEN=1600
 HARD_MAX_EDGES=150
 
@@ -16,15 +15,14 @@ BINARIZE_METHOD="topk"
 SIM_METRIC="concentration"
 
 MODELS=(
-  /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-8B
-  # /home/lym/data1/LLM-model/meta-llama/Llama-3.2-3B-Instruct
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-4B
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-14B
-  # /home/lym/data1/LLM-model/meta-llama/Llama-2-7b-chat-hf
+  meta-llama/Meta-Llama-3.1-8B-Instruct
+  Qwen/Qwen3-8B
+  YuyanLiu/merged_MolecularGPT
+  meta-llama/Llama-3.2-3B-Instruct
+  Qwen/Qwen3-4B
+  Qwen/Qwen3-14B
 )
 
-# MolecularNet 任务名
 MN_TASKS=(
   "BACE"
   "BBBP"
@@ -65,7 +63,7 @@ for MODEL_PATH in "${MODELS[@]}"; do
     SCORE_DIR="${SCORING_OUT}/${MODE}_${BINARIZE_METHOD}_${SIM_METRIC}_std"
     python -m slash.final_select \
       --mode "${MODE}" \
-      --json_entropy "${ENTROPY_OUT}/${t}_entropy_${MODE}/${t}_selected_layers_middle_peak_entropy.json" \
+      --json_entropy "${ENTROPY_OUT}/${t}_entropy_${MODE}/${t}_selected_layers_auto_entropy.json" \
       --json_scoring "${SCORE_DIR}/${t}_selected_layers_auto_scoring.json" \
       --output_json "${SELECT_OUT}/${t}_${MODE}_intersection.json"
   done

@@ -7,7 +7,72 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+_EDGE_PATTERNS = [
+    (re.compile(r'\(\s*(\d+)\s*->\s*([\d\s,]+)\)'), "arrow_multi"), # (0->1,2)
+    (re.compile(r'\(\s*(\d+)\s*,\s*([\d\s,]+)\)'), "multi_comma"),  # (0,1,2)
+    (re.compile(r'\(\s*(\d+)\s*->\s*(\d+)\s*\)'), "arrow"),     # (0->1)
+    (re.compile(r'\(\s*(\d+)\s*,\s*(\d+)\s*\)'), "pair"),       # (0,1)
+]
+def _find_active_edge_pattern(text: str):
+    for pat, tag in _EDGE_PATTERNS:
+        if pat.search(text):
+            return pat, tag
+    return None, None
+def _parse_edge_matches(prompt: str):
+    pat, tag = _find_active_edge_pattern(prompt)
+    if pat is None:
+        return []
 
+    parsed = []
+    for m in pat.finditer(prompt):
+        src = int(m.group(1))
+        if tag in ("arrow_multi", "multi_comma"):
+            tail = m.group(2)
+            nums = [int(x) for x in re.findall(r'\d+', tail)]
+            if not nums:
+                continue
+            dst = nums[0]
+        else:
+            dst = int(m.group(2))
+        parsed.append(
+            {
+                "src": src,
+                "dst": dst,
+                "start": m.start(),
+                "end": m.end(),
+                "text": m.group(0),
+            }
+        )
+    return parsed
+def edge_aggre(prompt: str) -> str:
+    parsed = _parse_edge_matches(prompt)
+    if not parsed:
+        return prompt
+
+    parsed_sorted = sorted(parsed, key=lambda x: x["src"])
+
+    prefix = prompt[: parsed[0]["start"]]
+    suffix = prompt[parsed[-1]["end"] :]
+
+    edge_strs = [item["text"] for item in parsed_sorted]
+    middle = " ".join(edge_strs)
+    return prefix + middle + suffix
+
+def edge_shuffle(prompt: str, seed: int=42) -> str:
+    parsed = _parse_edge_matches(prompt)
+    if not parsed:
+        return prompt
+
+    rng = random.Random(seed)
+    parsed_shuffled = parsed[:]
+    rng.shuffle(parsed_shuffled)
+
+    prefix = prompt[: parsed[0]["start"]]
+    suffix = prompt[parsed[-1]["end"] :]
+
+    edge_strs = [item["text"] for item in parsed_shuffled]
+    middle = " ".join(edge_strs)
+    return prefix + middle + suffix
 # -----------------------------
 # Prompts
 # -----------------------------
@@ -61,9 +126,13 @@ def parse_yesno(text: str) -> Optional[str]:
     if not text:
         return None
     t = text.strip().lower()
-    if re.search(r"\byes\b", t):
+    yes_matches = list(re.finditer(r"\byes\b", t))
+    no_matches = list(re.finditer(r"\bno\b", t))
+    if yes_matches and no_matches:
+        return None
+    if yes_matches:
         return "Yes"
-    if re.search(r"\bno\b", t):
+    if no_matches:
         return "No"
     if t[:1] == "y":
         return "Yes"
@@ -72,9 +141,6 @@ def parse_yesno(text: str) -> Optional[str]:
     return None
 
 
-# -----------------------------
-# Data specs (NO class)
-# -----------------------------
 TOX21_LABEL_COLS = [
     "NR-AR", "NR-AR-LBD", "NR-AhR", "NR-Aromatase", "NR-ER", "NR-ER-LBD", "NR-PPAR-gamma",
     "SR-ARE", "SR-ATAD5", "SR-HSE", "SR-MMP", "SR-p53",
@@ -156,26 +222,24 @@ def _format_query_graph(
     extra = extra or {}
 
     if task == "BACE":
-        return f"Molecular Graph: {graph_text}\nPlease answer with only Yes or No.\nBACE-1 Inhibit:"
+        return f"Molecular Graph: {graph_text}\nQ: Can this molecule inhibit BACE1? **Answer with only \"Yes\" or \"No\".**\nA:"
 
     if task == "BBBP":
-        return f"Molecular Graph: {graph_text}\nPlease answer with only Yes or No.\nPenetration:"
+        return f"Molecular Graph: {graph_text}\nQ: Can this molecule penetrate the blood-brain barrier? **Answer with only \"Yes\" or \"No\".**\nA:"
     
     if task == "HIV":
         act = extra.get("activity", "")
         # act_line = f"Activity test result: {act}\n" if act else ""
         act_line = ""
-        return f"Molecular Graph: {graph_text}\n{act_line}Please answer with only Yes or No.\nHIV Inhibit:"
-
+        return f"Molecular Graph: {graph_text}\nQ: Can this molecule effectively inhibit HIV replication? **Answer with only \"Yes\" or \"No\".**\nA:"
     if task == "ClinTox":
         fda = yesno_from_label(extra.get("FDA_APPROVED"))
         # fda_line = f"FDA Approved: {fda}\n" if fda in {"Yes", "No"} else ""
         fda_line = ""
-        return f"Molecular Graph: {graph_text}\n{fda_line}Clinically-trial-toxic:"
+        return f"Molecular Graph: {graph_text}\nQ: Is this molecule clinically trial toxic? **Answer with only \"Yes\" or \"No\".**\nA:"
 
     if task == "Tox21":
-        return f"Molecular Graph: {graph_text}\nToxic:"
-
+        return f"Molecular Graph: {graph_text}\nQ: Is this molecule toxic? **Answer with only \"Yes\" or \"No\".**\nA:"
     raise ValueError(f"Unknown task: {task}")
 
 

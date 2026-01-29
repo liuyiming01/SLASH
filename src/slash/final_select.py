@@ -13,15 +13,13 @@ def _load_selection(path: str) -> Dict[int, Set[int]]:
         if isinstance(v, list):
             heads = {int(h) for h in v}
         else:
-            # 兼容万一写成单个数字的情况
             heads = {int(v)}
         if heads:
             sel[layer] = heads
     return sel
 
 
-def _intersect_selections(a: Dict[int, Set[int]],
-                          b: Dict[int, Set[int]]) -> Dict[int, List[int]]:
+def _intersect_selections(a: Dict[int, Set[int]], b: Dict[int, Set[int]]) -> Dict[int, List[int]]:
     out: Dict[int, List[int]] = {}
     for layer, heads_a in a.items():
         heads_b = b.get(layer)
@@ -74,8 +72,6 @@ def main():
     sel_entropy = _load_selection(args.json_entropy)
 
     inter = _intersect_selections(sel_scoring, sel_entropy)
-
-    # JSON 要求 key 为字符串
     out = {str(layer): heads for layer, heads in sorted(inter.items())}
 
     with open(args.output_json, "w") as f:

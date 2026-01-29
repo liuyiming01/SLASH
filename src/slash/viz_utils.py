@@ -6,9 +6,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from .utils import count_edges_in_prompt
 
-# ============================================================
 #   Plotting Helpers (for scoring.py)
-# ============================================================
 
 def plot_perhead_scores_and_layer_mean(
     task_name: str,
@@ -19,11 +17,6 @@ def plot_perhead_scores_and_layer_mean(
     binarize_method: str,
     plot_cfg: dict,
 ):
-    """
-    绘制：
-      1) per-head heatmap (layer x head)
-      2) 基于 per-head 平均的 per-layer 折线图
-    """
     num_layers, num_heads = avg_scores.shape
     scores_plot = np.where(valid_mask, avg_scores, np.nan)
 
@@ -76,9 +69,6 @@ def plot_perlayer_scores(
     binarize_method: str,
     plot_cfg: dict,
 ):
-    """
-    绘制 per-layer 折线图。
-    """
     num_layers = avg_scores_layer.shape[0]
     dpi = plot_cfg.get("dpi", 250)
     line_color = plot_cfg.get("line_color", "C0")
@@ -100,10 +90,6 @@ def plot_perlayer_scores(
     print(f"  -> Line plot saved to {lineplot_path}")
 
 
-# ============================================================
-#   Plotting Helpers for raw attention visualization (used in plot.py)
-# ============================================================
-
 def choose_sample_for_task(
     df,
     min_edges: int = 80,
@@ -111,10 +97,6 @@ def choose_sample_for_task(
     input_column: str = "input_prompt",
     max_samples: int = 5,
 ):
-    """
-    从 task 的 df 中选择若干个边数在 [min_edges, max_edges] 内的样本索引。
-    返回一个索引列表（长度 <= max_samples），若无则返回空列表。
-    """
     idxs = []
     num_edges_list = []
     for idx, row in df.iterrows():
@@ -136,12 +118,6 @@ def create_layer_figure(full_attn_layer,
                         local_spans,
                         g_start: int,
                         g_end: int):
-    """
-    full_attn_layer: [S, S] 单层多头平均后的 full attention
-    avg_roi:         [N, N] ROI 内多头平均后的 attention
-    bin_mask:        [N, N] 二值 mask
-    blurred_norm:    [N, N] 经过形态学处理/模糊 + 归一化后的 mask
-    """
     fig, axes = plt.subplots(2, 2, figsize=(16, 14))
 
     # 1. full attention map (layer avg)
@@ -153,7 +129,6 @@ def create_layer_figure(full_attn_layer,
     ax_full.set_title(f"{title} - Full (Layer Avg)")
     ax_full.axis("off")
 
-    # 标注大三角 ROI
     big_tri_points = [
         (g_start - 0.5, g_start - 0.5),
         (g_start - 0.5, g_end + 0.5),
@@ -176,7 +151,6 @@ def create_layer_figure(full_attn_layer,
     )
     fig.colorbar(im0, cax=cax0)
 
-    # 2. 平均 ROI heatmap
     ax_raw = axes[0, 1]
     im_raw = ax_raw.imshow(avg_roi, cmap="coolwarm", aspect="auto")
     ax_raw.set_title("ROI - Layer Avg")
@@ -191,19 +165,16 @@ def create_layer_figure(full_attn_layer,
     )
     fig.colorbar(im_raw, cax=cax_raw)
 
-    # 3. 0/1 bin_mask
     ax_bin = axes[1, 0]
     ax_bin.imshow(bin_mask, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
     ax_bin.set_title("ROI - Binary (0/1)")
     ax_bin.axis("off")
 
-    # 4. 模糊/形态学后的 mask
     ax_blur = axes[1, 1]
     ax_blur.imshow(blurred_norm, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
     ax_blur.set_title("ROI - Denoised")
     ax_blur.axis("off")
 
-    # 每个局部 span 画一个三角形框
     for (s, e) in local_spans:
         tri_points = [
             (s - 0.5, s - 0.5),
@@ -230,9 +201,6 @@ def create_head_figure(full_attn_head,
                        local_spans,
                        g_start: int,
                        g_end: int):
-    """
-    与 create_layer_figure 类似，但针对单个 head。
-    """
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
 
     # 1. full attention map (head)
@@ -272,13 +240,11 @@ def create_head_figure(full_attn_head,
     )
     fig.colorbar(im_raw, cax=cax)
 
-    # 3. 0/1 bin_mask
     ax_bin = axes[1, 0]
     ax_bin.imshow(bin_mask, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
     ax_bin.set_title("ROI - Binary (0/1)")
     ax_bin.axis("off")
 
-    # 4. 模糊/形态学后的 mask
     ax_blur = axes[1, 1]
     ax_blur.imshow(blurred_norm, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
     ax_blur.set_title("ROI - Denoised")

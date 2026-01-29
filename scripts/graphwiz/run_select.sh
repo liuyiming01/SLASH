@@ -1,32 +1,33 @@
-REPO_ROOT="/home/lym/LLM-Research/SLASH"
+REPO_ROOT="SLASH/"
 export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
-export CUDA_VISIBLE_DEVICES="1,3"
+export CUDA_VISIBLE_DEVICES="6,7"
 
-TASK_NAME="GraphWiz_cycle"
-DATA_DIR="/home/lym/data1/Datasets/GraphWiz/GraphInstruct-Test"
-OUT_DIR="${REPO_ROOT}/outputs/final_select/select1.0/${TASK_NAME}"
+TASK_NAME="GraphWiz"
+DATA_DIR="GraphWiz/GraphInstruct-Test"
+OUT_DIR="${REPO_ROOT}/outputs/final_select/select_head/${TASK_NAME}"
 
 MODELS=(
-  /home/lym/data1/LLM-model/meta-llama/Meta-Llama-3.1-8B-Instruct
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-8B
-  # /home/lym/data1/LLM-model/meta-llama/Llama-3.2-3B-Instruct
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-4B
-  # /home/lym/data1/LLM-model/Qwen/Qwen3-14B
-  # /home/lym/data1/LLM-model/meta-llama/Llama-2-7b-chat-hf
+  YuyanLiu/merged_MolecularGPT
+  meta-llama/Meta-Llama-3.1-8B-Instruct
+  Qwen/Qwen3-8B
+  meta-llama/Llama-3.2-3B-Instruct
+  Qwen/Qwen3-4B
+  Qwen/Qwen3-14B
+  meta-llama/Llama-2-7b-chat-hf
 )
 MODELS_GraphWiz=(
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-7B
-  /home/lym/data1/LLM-model/GraphWiz/Mistral-7B
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-13B
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-7B-DPO
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-13B-DPO
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-7B-RFT
-  /home/lym/data1/LLM-model/GraphWiz/LLaMA2-13B-RFT
-  /home/lym/data1/LLM-model/GraphWiz/Mistral-7B-RFT
+  GraphWiz/LLaMA2-7B
+  GraphWiz/Mistral-7B
+  GraphWiz/LLaMA2-13B
+  GraphWiz/LLaMA2-7B-DPO
+  GraphWiz/LLaMA2-13B-DPO
+  GraphWiz/LLaMA2-7B-RFT
+  GraphWiz/LLaMA2-13B-RFT
+  GraphWiz/Mistral-7B-RFT
 )
 
-MODE="per_head"
-SAMPLE_NUM=10
+MODE="per_layer"
+SAMPLE_NUM=30
 MAX_SEQ_LEN=1600
 HARD_MAX_EDGES=150
 
@@ -34,13 +35,14 @@ BINARIZE_METHOD="topk"
 SIM_METRIC="concentration"
 
 GW_TASKS=(cycle connectivity hamilton substructure bipartite flow shortest topology triangle)
-
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
   OUT="${OUT_DIR}/${MODEL_NAME}"
   SCORING_OUT="${OUT}/scoring_results"
   ENTROPY_OUT="${OUT}/entropy_results"
   SELECT_OUT="${OUT}/select_results"
+
+  mkdir -p "${SCORING_OUT}" "${ENTROPY_OUT}" "${SELECT_OUT}"
 
   echo "[run_select] (${TASK_NAME}) model=${MODEL_NAME} -> ${OUT}"
 
@@ -63,7 +65,7 @@ for MODEL_PATH in "${MODELS[@]}"; do
   for t in "${GW_TASKS[@]}"; do
     python -m slash.final_select \
       --mode "${MODE}" \
-      --json_entropy "${ENTROPY_OUT}/${t}_entropy_${MODE}/${t}_selected_layers_middle_peak_entropy.json" \
+      --json_entropy "${ENTROPY_OUT}/${t}_entropy_${MODE}/${t}_selected_layers_auto_entropy.json" \
       --json_scoring "${SCORE_DIR}/${t}_selected_layers_auto_scoring.json" \
       --output_json "${SELECT_OUT}/${t}_${MODE}_intersection.json"
   done

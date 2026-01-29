@@ -10,13 +10,14 @@ from typing import Optional, Dict, Sequence, List
 import argparse
 import shutil
 
+REPO_ROOT = "SLASH"
 
 CHOICES = ['A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
 
 
 def extract_last_num(text: str) -> float:
-    text = re.sub(r"(\d),(\d)", "\g<1>\g<2>", text)  # 处理形如 123,456
-    res = re.findall(r"(\d+(\.\d+)?)", text)  # 匹配 123456.789
+    text = re.sub(r"(\d),(\d)", "\g<1>\g<2>", text)
+    res = re.findall(r"(\d+(\.\d+)?)", text)
     if len(res) > 0:
         num_str = res[-1][0]
         return float(num_str)
@@ -68,17 +69,18 @@ def check(key, truth, predict):
             return False
 
 
-def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
+def MODIFICATION(model, layers_heads_to_modify, gamma, first_token_idx=0):
     import sys
     import types
 
-    sys.path.insert(0, "/home/lym/LLM-Research/Attention/Graph_Attention/GraphLens")
+    sys.path.insert(0, REPO_ROOT)
 
     model_type = getattr(getattr(model, "config", None), "model_type", None)
     model_name = model.__class__.__name__.lower()
 
     # Prefer config.model_type; fallback to class name heuristic
     is_llama = (model_type in {"llama"}) or ("llama" in model_name)
+    is_qwen3 = (model_type in {"qwen3"}) or ("qwen3" in model_name)
     is_mistral = (model_type in {"mistral"}) or ("mistral" in model_name)
 
     if is_llama:
@@ -86,7 +88,7 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
         LlamaModel_forward, LlamaDecoderLayer_forward, LlamaAttention_forward = (
             modeling_llama_attn_shift.get_modified_forward_llama(
                 layers_heads_to_modify=layers_heads_to_modify,
-                delta_ratio=delta_ratio,
+                gamma=gamma,
                 first_token_idx=first_token_idx,
             )
         )
@@ -96,12 +98,27 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
             layer.self_attn.forward = types.MethodType(LlamaAttention_forward, layer.self_attn)
         return
 
+    if is_qwen3:
+        from modeling import modeling_qwen3_attn_shift
+        Qwen3Model_forward, Qwen3DecoderLayer_forward, Qwen3Attention_forward = (
+            modeling_qwen3_attn_shift.get_modified_forward_qwen3(
+                layers_heads_to_modify=layers_heads_to_modify,
+                gamma=gamma,
+                first_token_idx=first_token_idx,
+            )
+        )
+        model.model.forward = types.MethodType(Qwen3Model_forward, model.model)
+        for layer in model.model.layers:
+            layer.forward = types.MethodType(Qwen3DecoderLayer_forward, layer)
+            layer.self_attn.forward = types.MethodType(Qwen3Attention_forward, layer.self_attn)
+        return
+
     if is_mistral:
         from modeling import modeling_mistral_attn_shift
         MistralModel_forward, MistralDecoderLayer_forward, MistralAttention_forward = (
             modeling_mistral_attn_shift.get_modified_forward_mistral(
                 layers_heads_to_modify=layers_heads_to_modify,
-                delta_ratio=delta_ratio,
+                gamma=gamma,
                 first_token_idx=first_token_idx,
             )
         )
@@ -113,7 +130,7 @@ def MODIFICATION(model, layers_heads_to_modify, delta_ratio, first_token_idx=0):
 
     raise ValueError(
         f"Unsupported model for MODIFICATION(): model_type={model_type}, class={model.__class__.__name__}. "
-        "Currently supports: llama, mistral."
+        "Currently supports: llama, qwen3, mistral."
     )
 
 def main(
@@ -122,24 +139,20 @@ def main(
     save_dir: str  = None,
 ):
     batch_size = args.batch_size
-    print(f"main start, is_bf16:{is_bf16}, batch_size:{batch_size}")
+    print(f"Evaluating task={args.tasks}, model={args.model_path.split('/')[-1]}, gamma={args.gamma}, batch_size={args.batch_size}")
     
     model_path = args.model_path
     model, tokenizer = get_model(model_path, is_bf16=is_bf16)
-    print("model loaded")
 
-    # 记录修改模式：none / config / list
     mod_mode = "none"
     layers_heads_to_modify = None
 
     if args.layer_head_config_path is not None:
-        # 情况 2: 使用外部 json 配置
         print(f"Loading layer-head config from {args.layer_head_config_path}")
         with open(args.layer_head_config_path, "r") as f:
             layers_heads_to_modify = json.load(f)
         mod_mode = "config"
     else:
-        # 情况 3: 使用命令行列表指定要修改的 layer
         if args.layers_to_modify is not None:
             print(f"Using layers_to_modify from args: {args.layers_to_modify}")
             layers_to_modify = args.layers_to_modify
@@ -149,14 +162,13 @@ def main(
             }
             mod_mode = "list"
         else:
-            # 情况 1: 不做任何修改
             print("No layer_head_config_path and no layers_to_modify; no modification will be applied.")
             layers_heads_to_modify = None
             mod_mode = "none"
 
     if layers_heads_to_modify:
         print(f"Applying modifications for layers: {list(layers_heads_to_modify.keys())}")
-        MODIFICATION(model, layers_heads_to_modify, delta_ratio=args.delta_ratio)
+        MODIFICATION(model, layers_heads_to_modify, gamma=args.gamma)
 
     batch_llama = get_batch_llama(model, tokenizer, args)
 
@@ -166,14 +178,14 @@ def main(
         if mod_mode == "none":
             save_dir = f"{base_dir}/test"
         elif mod_mode == "config":
-            config_tag = args.layer_head_config_path.split('_')[-1].replace('.json', '')
-            save_dir = f"{base_dir}/modified_{config_tag}_delta{args.delta_ratio}"
+            # config_tag = args.layer_head_config_path.split('_')[-1].replace('.json', '')
+            # save_dir = f"{base_dir}/modified_{config_tag}gamma{args.gamma}"
+            save_dir = f"{base_dir}/modified_gamma{args.gamma}"
         elif mod_mode == "list":
             layer_tag = "_".join(str(l) for l in args.layers_to_modify)
-            save_dir = f"{base_dir}/{layer_tag}_delta{args.delta_ratio}"
+            save_dir = f"{base_dir}/gamma{args.gamma}_{layer_tag}"
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-    # 若是 config 模式，把配置文件拷贝一份到 save_dir
     if mod_mode == "config" and args.layer_head_config_path is not None:
         cfg_src = Path(args.layer_head_config_path)
         cfg_dst = Path(save_dir) / cfg_src.name
@@ -195,10 +207,20 @@ def main(
     results = {}
 
     for lang in tasks:
-        print(f'===========we are testing in {lang}====================')
-        
+        print(f'==========={args.run_mode} in {lang}====================')
+
         with open(f'/home/lym/data1/Datasets/GraphWiz/GraphInstruct-Test/{lang}_test.json') as f:
-            datas = f.readlines()
+            total_datas = f.readlines()
+        if args.run_mode == "calibration":
+            random.seed(42)
+            datas = random.sample(total_datas, 100)[:50]
+        elif args.run_mode == "test":
+            random.seed(42)
+            calibration_data = random.sample(total_datas, 100)[:50]
+            remaining_data = [data for data in total_datas if data not in calibration_data]
+            datas = remaining_data
+        else:
+            raise ValueError(f"Unknown run_mode: {args.run_mode}")
             
         gen_datas_jsonl = Path(save_dir) / f"_gen_{lang}_datas.jsonl"
         start_index = (
@@ -220,9 +242,9 @@ def main(
                     json.dump(
                         dict(
                             index=i + j,
+                            output_str=output_str,
                             source_data=gsm8k_data,
                             input_str=input_str,
-                            output_str=output_str,
                             task=lang
                         ),
                         f,
@@ -433,12 +455,8 @@ if __name__ == "__main__":
         help="List of layer indices to modify when no layer_head_config_path is provided; "
              "set to None (do not pass this argument) to disable modification."
     )
-    parser.add_argument(
-        '--delta_ratio',
-        type=float,
-        default=0.4,
-        help="The delta ratio for attention redistribution."
-    )
+    parser.add_argument("--gamma", type=float, default=None)
+    parser.add_argument("--run_mode", type=str, default="test")
     args = parser.parse_args()
 
     main(args=args)

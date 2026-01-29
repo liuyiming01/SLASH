@@ -23,22 +23,22 @@ from utils import (
     sample_shots_graph_from_df,
     smiles_to_graph_text,
     yesno_from_label,
+    edge_aggre,
+    edge_shuffle
 )
 
-REPO_ROOT = "/home/lym/LLM-Research/SLASH"
-# NEW: allow importing SLASH helpers (edge-range sampling)
+REPO_ROOT = "SLASH"
 _SLASH_IMPORTED = False
 def _try_import_slash():
     global _SLASH_IMPORTED
     if _SLASH_IMPORTED:
         return True
     try:
-        # repo root: .../SLASH ; package path: SLASH/src
         repo_root = REPO_ROOT
         src_path = os.path.join(repo_root, "src")
         if src_path not in sys.path:
             sys.path.insert(0, src_path)
-        from slash.datasets import molecularnet_sample_indices_by_edge_range  # noqa: F401
+        from slash.datasets import molecularnet_sample_indices_by_edge_range
         _SLASH_IMPORTED = True
         return True
     except Exception:
@@ -116,6 +116,8 @@ def _compute_metrics_from_pred_jsonl(pred_path: str) -> Dict[str, float]:
             if gt not in {"Yes", "No"}:
                 continue
             if pred not in {"Yes", "No"}:
+                y_true.append(1 if gt == "Yes" else 0)
+                y_pred.append(0 if gt == "Yes" else 1)
                 invalid += 1
                 continue
 
@@ -130,7 +132,7 @@ def _compute_metrics_from_pred_jsonl(pred_path: str) -> Dict[str, float]:
     correct = float(sum(int(a == b) for a, b in zip(y_true, y_pred)))
     total = float(len(y_true))
     return {"accuracy": acc, "f1": f1, "total": total, "correct": correct, "invalid": float(invalid)}
-
+    
 def MODIFICATION(model, layers_heads_to_modify, gamma, first_token_idx=0):
     import sys
     import types
@@ -209,6 +211,46 @@ def generate_batch(model, tokenizer, prompts: List[str], max_new_tokens: int, te
         out_texts.append(full[len(p):].strip() if full.startswith(p) else full.strip())
     return out_texts
 
+def score_first_token_yesno(model, tokenizer, prompts: List[str]):
+    if len(prompts) == 0:
+        return []
+
+    inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True)
+    input_ids = inputs["input_ids"].to(model.device)
+    attention_mask = inputs.get("attention_mask", None)
+    if attention_mask is not None:
+        attention_mask = attention_mask.to(model.device)
+
+    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+    logits = outputs.logits[:, -1, :]  # (B, V)
+    probs = torch.softmax(logits, dim=-1)
+
+    # collect robust single-token variants for yes/no
+    yes_cands = ["Yes", " yes", "yes", " yes.", "Yes."]
+    no_cands = ["No", " no", "no", " no.", "No."]
+    yes_ids = {tokenizer.encode(s, add_special_tokens=False)[0] for s in yes_cands
+               if len(tokenizer.encode(s, add_special_tokens=False)) == 1}
+    no_ids = {tokenizer.encode(s, add_special_tokens=False)[0] for s in no_cands
+              if len(tokenizer.encode(s, add_special_tokens=False)) == 1}
+    # if tokenizer provides no single-token variant, signal caller to fallback
+    if (not yes_ids) and (not no_ids):
+        return [None] * logits.size(0)
+
+    yes_idx = list(sorted(yes_ids))
+    no_idx = list(sorted(no_ids))
+    # yes_prob = probs[:, yes_idx].sum(dim=-1).cpu().tolist() if yes_idx else [0.0] * probs.size(0)
+    # no_prob = probs[:, no_idx].sum(dim=-1).cpu().tolist() if no_idx else [0.0] * probs.size(0)
+    yes_prob = probs[:, yes_idx].max(dim=-1)[0].cpu().tolist() if yes_idx else [0.0] * probs.size(0)
+    no_prob = probs[:, no_idx].max(dim=-1)[0].cpu().tolist() if no_idx else [0.0] * probs.size(0)
+
+    out = []
+    for y, n in zip(yes_prob, no_prob):
+        if (y == 0.0) and (n == 0.0):
+            pred = None
+        else:
+            pred = "Yes" if (y > n) else "No"
+        out.append({"yes_prob": float(y), "no_prob": float(n), "pred": pred})
+    return out
 
 def eval_task(
     args,
@@ -280,6 +322,9 @@ def eval_task(
                 gt = yesno_from_label(row.get(label_col))
 
                 g = smiles_to_graph_text(smi, weighted_edges=weighted_edges) if smi else None
+                # g = edge_shuffle(g)
+                if g and args.edge_agg:
+                    g = edge_aggre(g)
                 graphs.append(g)
                 extras.append(extra)
 
@@ -306,16 +351,43 @@ def eval_task(
                 )
                 truths.append(gt if (g and gt is not None) else None)
 
-            outs = generate_batch(
-                model=model,
-                tokenizer=tokenizer,
-                prompts=prompts,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-            )
+            if getattr(args, "first_token_prob", False):
+                scores = score_first_token_yesno(model, tokenizer, prompts)
+                # if tokenizer lacked single-token variants, fall back to generation
+                if any(s is None for s in scores):
+                    outs = generate_batch(
+                        model=model,
+                        tokenizer=tokenizer,
+                        prompts=prompts,
+                        max_new_tokens=args.max_new_tokens,
+                        temperature=args.temperature,
+                    )
+                    scores = [None] * len(outs)
+                else:
+                    # create placeholder raw outputs (we record probs separately)
+                    outs = [""] * len(scores)
+            else:
+                outs = generate_batch(
+                    model=model,
+                    tokenizer=tokenizer,
+                    prompts=prompts,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                )
+                scores = [None] * len(outs)
 
             for i, out, prompt, gt, g, extra in zip(batch_idx, outs, prompts, truths, graphs, extras):
-                pred = parse_yesno(out)
+                score = scores.pop(0)
+                if score is not None:
+                    pred = score["pred"]
+                    yes_p = float(score["yes_prob"])
+                    no_p = float(score["no_prob"])
+                    scoring_mode = "first_token_prob"
+                else:
+                    pred = parse_yesno(out)
+                    yes_p = None
+                    no_p = None
+                    scoring_mode = "generation"
                 wf.write(
                     json.dumps(
                         {
@@ -326,6 +398,9 @@ def eval_task(
                             "ground_truth": gt,
                             "prediction": pred,
                             "raw_output": out,
+                            "scoring_mode": scoring_mode,
+                            "yes_prob": yes_p,
+                            "no_prob": no_p,
                             "edge_range_tag": (edge_range_tag or ""),
                             "prompt": prompt,
                             "extra": extra,
@@ -376,7 +451,14 @@ def main():
 
     parser.add_argument("--layer_head_config_path", type=str, default=None)
     parser.add_argument("--layers_to_modify", type=int, nargs="+", default=None)
-    parser.add_argument("--gamma", type=float, default=0.4)
+    parser.add_argument("--gamma", type=float, default=None)
+    parser.add_argument("--edge_agg", action="store_true")
+    parser.add_argument(
+        "--first_token_prob",
+        action="store_true",
+        help="Decide Yes/No from next-token probability mass for 'Yes' vs 'No' (robust to CoT).",
+    )
+    parser.add_argument("--run_mode", type=str, default="test")
 
     args = parser.parse_args()
     weighted_edges = args.graph_mode == "weighted"
@@ -426,16 +508,18 @@ def main():
     pure_model = os.path.basename(args.model_path.rstrip("/"))
     shot_tag = f"shot{int(args.shot)}"
     graph_tag = f"graph_{args.graph_mode}"
-    split_tag = f"{args.split}"
+    split_tag = f"{args.split}_{args.preferred_min_edges}min_{args.hard_max_edges}max" if args.split != "test" else "test"
     base_dir = os.path.join(args.output_dir, pure_model, args.task, shot_tag, graph_tag, split_tag)
+    agg_edge_tag = "_edgeAgg" if args.edge_agg else ""
 
     if mod_mode == "none":
-        save_dir = os.path.join(base_dir, "test")
+        save_dir = os.path.join(base_dir, f"test{agg_edge_tag}")
     elif mod_mode == "config":
-        save_dir = os.path.join(base_dir, f"modified_gamma{args.gamma}")
+        config_tag = args.layer_head_config_path.split('_')[-1].replace('.json', '')
+        save_dir = os.path.join(base_dir, f"modified_gamma{args.gamma}{agg_edge_tag}{config_tag}")
     else:
         layer_tag = "_".join(str(l) for l in args.layers_to_modify)
-        save_dir = os.path.join(base_dir, f"gamma{args.gamma}_{layer_tag}")
+        save_dir = os.path.join(base_dir, f"gamma{args.gamma}_{layer_tag}{agg_edge_tag}")
 
     Path(save_dir).mkdir(parents=True, exist_ok=True)
 
@@ -461,10 +545,73 @@ def main():
 
         label_to_eval = tox_any_col
 
+    calibration_indices = None
+    if args.run_mode == "calibration":
+        # determine which indices the "test" run would use (may be a sampled subset or the full split)
+        test_mode_set = None
+        if (args.sample_num is not None) and (not args.no_edge_range_sample):
+            ok = _try_import_slash()
+            if not ok:
+                raise ImportError("Failed to import SLASH for edge-range sampling (needed to compute non-overlap).")
+            from slash.datasets import molecularnet_sample_indices_by_edge_range
+
+            mn_cfg = {
+                "root": args.data_dir,
+                "task": args.task,
+                "split": args.split,
+                "weighted_edges": bool(weighted_edges),
+            }
+            # indices that *would* be used by the test run (sample_num from args)
+            test_idx_for_sample, _rng, _stats = molecularnet_sample_indices_by_edge_range(
+                molecularnet=mn_cfg,
+                sample_num=int(args.sample_num),
+                preferred_min_edges=int(args.preferred_min_edges),
+                hard_max_edges=(None if int(args.hard_max_edges) < 0 else int(args.hard_max_edges)),
+                seed=int(args.seed),
+                require_label=True,
+            )
+            test_mode_set = set(test_idx_for_sample or [])
+
+            pool_idx_for_range, _rng2, _stats2 = molecularnet_sample_indices_by_edge_range(
+                molecularnet=mn_cfg,
+                sample_num=int(args.sample_num+100),
+                preferred_min_edges=int(args.preferred_min_edges),
+                hard_max_edges=(None if int(args.hard_max_edges) < 0 else int(args.hard_max_edges)),
+                seed=int(args.seed),
+                require_label=True,
+            )
+            pool_set = set(pool_idx_for_range or [])
+            print(f"[Calibration] edge-range pool has {len(pool_set)} examples")
+        else:
+            # "test" run would evaluate the entire available dataframe -> no safe disjoint set
+            test_mode_set = set(range(len(test_df)))
+            pool_set = set()  # no edge-range pool when test covers whole DF
+
+        # candidates must (a) be in the same edge-range pool (if applicable), (b) not overlap test_mode_set,
+        # and (c) have a valid label for label_to_eval.
+        if pool_set:
+            candidates = [i for i in pool_set if i not in test_mode_set]
+        else:
+            candidates = [i for i in range(len(test_df)) if i not in test_mode_set]
+        if len(candidates) < 100:
+            raise ValueError(
+                f"Cannot build 100 disjoint calibration examples that also satisfy the edge-range: "
+                f"only {len(candidates)} available. Try using a different --preferred_min_edges/--hard_max_edges, "
+                "--sample_num (so test uses a subset), or change --split."
+            )
+        calibration_indices = candidates[:100]
+
+        print(f"[Calibration] selected {len(calibration_indices)} disjoint indices (seed={args.seed})")
+
     # choose indices by edge-range + sampling (optional)
     eval_indices = None
     edge_range_tag = None
-    if (args.sample_num is not None) and (not args.no_edge_range_sample):
+    # if (args.sample_num is not None) and (not args.no_edge_range_sample):
+    # If calibration was requested, use the precomputed calibration_indices and skip edge-range sampling.
+    if args.run_mode == "calibration":
+        eval_indices = calibration_indices
+        edge_range_tag = "calibration_n100"
+    elif (args.sample_num is not None) and (not args.no_edge_range_sample):
         ok = _try_import_slash()
         if not ok:
             raise ImportError("Failed to import SLASH for edge-range sampling. Check SLASH/src is accessible.")
@@ -494,6 +641,7 @@ def main():
             eval_indices = None
             edge_range_tag = None
     
+    print(f"Evaluating task={args.task}, model={pure_model}, gamma={args.gamma}, split={args.split}")
     m = eval_task(
         args=args,
         model=model,

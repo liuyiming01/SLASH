@@ -29,9 +29,6 @@ def matrix_based_entropy_from_svals(
     alpha: float = 1.0,
     eps: float = 1e-12,
 ) -> torch.Tensor:
-    """
-    根据奇异值计算矩阵基熵（支持 batch）。
-    """
     power = svals ** 2
     power_sum = power.sum(dim=-1, keepdim=True) + eps
     p = power / power_sum
@@ -126,11 +123,10 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
     output_dir = cfg["output_dir"]
     top_fraction = float(cfg.get("select_top_fraction", 0.4))
 
-    # 1) load
     graphsst = cfg.get("graphsst", None)
     molecularnet = cfg.get("molecularnet", None)
 
-    # ========== MolecularNet分支 ==========
+    # ========== MolecularNet ==========
     if molecularnet is not None:
         preferred_min_edges = int(cfg.get("preferred_min_edges", 60))
         hard_max_edges = cfg.get("hard_max_edges", None)
@@ -167,7 +163,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
         )
 
         subset = samples
-        all_df = samples  # 用于meta统计
+        all_df = samples
     else:
         data_path = None if (graphsst is not None or molecularnet is not None) else (cfg.get("data_path") or _find_data_file(data_dir, task_name))
 
@@ -184,7 +180,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             print(f"[{task_name}] No samples. Skip.")
             return
 
-        # 2) 边数统计：优先用 datasets.py 的 __num_edges（Graph-SST 已做 standardize 更稳）
         if "__num_edges" in all_df.columns:
             edge_counts = all_df["__num_edges"].to_numpy(dtype=np.int32)
         else:
@@ -225,9 +220,7 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             f"mode={stats.get('mode')}"
         )
 
-    # -----------------------------
     # Cache reuse
-    # -----------------------------
     out_dir_mode = os.path.join(output_dir, f"{task_name}_entropy_{score_mode}")
     os.makedirs(out_dir_mode, exist_ok=True)
 
@@ -267,7 +260,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             print(f"[{task_name}] Cache load failed, will recompute. Reason: {e}")
 
     if avg_entropy is None or score_cnt is None:
-        # 3) 熵累计（原逻辑不变）
         score_sum = None
         score_cnt = None
         num_layers = None
@@ -320,7 +312,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             if torch.cuda.is_available() and empty_cache_every > 0 and ((i + 1) % empty_cache_every == 0):
                 torch.cuda.empty_cache()
 
-        # 4) 平均 + 保存缓存（原逻辑 + meta）
         avg_entropy = score_sum / np.maximum(score_cnt, 1)
 
         np.savez_compressed(cache_file, avg_entropy=avg_entropy, count=score_cnt)
@@ -329,7 +320,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
         print(f"[{task_name}] Cached entropy saved to {cache_file}")
         print(f"[{task_name}] Cache meta saved to {meta_file}")
 
-    # ---- from here, keep your original plotting + selection, but remove the duplicated out_dir_mode/cache_file block ----
     ent_tensor = torch.from_numpy(avg_entropy.astype(np.float32))
     if score_mode == "per_head":
         plot_entropy_heatmap_and_layer_mean(
@@ -346,7 +336,6 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
             prefix=f"{task_name}_entropy_alpha{alpha}_per_layer_mean_head",
             show=False,
         )
-        # per_layer cache path needs num_heads for JSON; prefer model.config
         num_heads = int(getattr(model.config, "num_attention_heads", 0))
 
     valid_mask = score_cnt > 0
@@ -483,7 +472,7 @@ def main():
             cfg["molecularnet"] = {
                 "root": args.data_dir,
                 "task": task,
-                "label_col": label_col,  # now single label; Tox21 uses __TOX21_TOXIC_ANY__
+                "label_col": label_col,  # Tox21 uses __TOX21_TOXIC_ANY__
                 "split": args.split,      # "test" or "sample"
                 "prompt_path": args.prompt_path,
                 "shot": 0,

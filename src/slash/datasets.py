@@ -8,16 +8,12 @@ import torch
 from .utils import count_edges_in_prompt, standardize_prompt_edges
 
 
-# ============================================================
-# MolecularNet helpers (reuse baselines/molecularNet/utils.py)
-# ============================================================
-REPO_ROOT = "/home/lym/LLM-Research/SLASH"
+# MolecularNet
+
+REPO_ROOT = "../../"
 _MOL_UTILS = None
 
 def _import_molecularnet_utils():
-    """
-    Load baselines/molecularNet/utils.py via file path to avoid packaging issues.
-    """
     global _MOL_UTILS
     if _MOL_UTILS is not None:
         return _MOL_UTILS
@@ -40,19 +36,10 @@ def _import_molecularnet_utils():
 
 def molecularnet_iter_task_label_ids(task_spec: Optional[str] = None) -> List[Tuple[str, str, str]]:
     """
-    UPDATED (match baselines/molecularNet/eval_mol.py):
-      - Each MolecularNet task uses ONLY ONE label for evaluation.
-      - For Tox21, use an aggregated label: "__TOX21_TOXIC_ANY__" (any assay == 1 => toxic).
-
-    Returns list of (task_id, task, label_col).
-    task_id naming rule (updated): task_id == task
-
-    task_spec examples:
-      - None / ""      -> all MolecularNet tasks
-      - "BACE"         -> only BACE
+    - None -> all MolecularNet tasks
     """
     m = _import_molecularnet_utils()
-    tasks = m.TASKS  # dict
+    tasks = m.TASKS
 
     out = []
     for tname, spec in tasks.items():
@@ -75,15 +62,6 @@ def _molecularnet_load_and_build_prompts(
     molecularnet: Dict[str, Any],
     input_column: str,
 ) -> pd.DataFrame:
-    """
-    Build a DataFrame with [input_column], plus helper cols:
-      - __idx
-      - __num_edges
-
-    UPDATED to match baselines/molecularNet/eval_mol.py:
-      - Each task uses a single evaluation label.
-      - Tox21 label is aggregated: "__TOX21_TOXIC_ANY__"
-    """
     m = _import_molecularnet_utils()
 
     root = molecularnet["root"]
@@ -94,7 +72,6 @@ def _molecularnet_load_and_build_prompts(
     seed = int(molecularnet.get("seed", 42))
     weighted_edges = bool(molecularnet.get("weighted_edges", False))
 
-    # base prompt (optional)
     base_prompt = ""
     if prompt_path:
         prompts = m.load_prompts(prompt_path)
@@ -108,9 +85,7 @@ def _molecularnet_load_and_build_prompts(
     spec = m.TASKS[task]
     smiles_col = str(spec["smiles_col"])
 
-    # --- choose evaluation label (single label per task) ---
     if task == "Tox21":
-        # Build an "overall toxic" label: if ANY assay == 1 => 1; else if any known (0/1) and none 1 => 0; else NaN
         tox_any_col = "__TOX21_TOXIC_ANY__"
         tox_cols = [c for c in (spec.get("label_cols") or []) if c in df.columns]
         if tox_any_col not in df.columns:
@@ -132,14 +107,11 @@ def _molecularnet_load_and_build_prompts(
         smi = str(row.get(smiles_col, "")).strip()
         if not smi:
             continue
-
         g = m.smiles_to_graph_text(smi, weighted_edges=weighted_edges)
         if not g:
             continue
 
         extra = m.row_extra(spec, row)
-
-        # few-shot is optional; sample from SAME df being evaluated (match eval_mol.py)
         if shot > 0 and label_col:
             shot_examples = m.sample_shots_graph_from_df(
                 df=df,
@@ -166,8 +138,6 @@ def _molecularnet_load_and_build_prompts(
     out_df = pd.DataFrame(records)
     if len(out_df) == 0:
         return out_df
-
-    # robust edge counting
     out_df["__num_edges"] = out_df[input_column].map(
         lambda s: count_edges_in_prompt(standardize_prompt_edges(s))
     ).astype(np.int32)
@@ -175,11 +145,6 @@ def _molecularnet_load_and_build_prompts(
     return out_df
 
 def _molecularnet_get_eval_label_col(df: pd.DataFrame, spec: Dict[str, Any], task: str) -> str:
-    """
-    Determine the single evaluation label column for MolecularNet.
-    For Tox21, create/use the aggregated label "__TOX21_TOXIC_ANY__".
-    Mutates df for Tox21 (adds the aggregated label col if missing).
-    """
     task = str(task)
     if task == "Tox21":
         tox_any_col = "__TOX21_TOXIC_ANY__"
@@ -197,11 +162,7 @@ def _molecularnet_get_eval_label_col(df: pd.DataFrame, spec: Dict[str, Any], tas
     lcs = spec.get("label_cols", [])
     return str(lcs[0]) if lcs else ""
 
-
 def _molecularnet_load_split_df(molecularnet: Dict[str, Any]) -> Tuple[Any, pd.DataFrame, Dict[str, Any], str, str, str]:
-    """
-    Returns: (m_utils_module, df, spec, task, split, label_col)
-    """
     m = _import_molecularnet_utils()
 
     root = molecularnet["root"]
@@ -217,16 +178,11 @@ def _molecularnet_load_split_df(molecularnet: Dict[str, Any]) -> Tuple[Any, pd.D
     label_col = _molecularnet_get_eval_label_col(df=df, spec=spec, task=task)
     return m, df, spec, task, split, label_col
 
-
 def molecularnet_build_prompts_from_indices(
     molecularnet: Dict[str, Any],
     input_column: str,
     indices: List[int],
 ) -> pd.DataFrame:
-    """
-    Build prompts ONLY for selected row indices (df.iloc[idx]).
-    Returns DataFrame with columns: [input_column, "__idx", "__num_edges"].
-    """
     m, df, spec, task, split, label_col = _molecularnet_load_split_df(molecularnet=molecularnet)
 
     prompt_path = molecularnet.get("prompt_path", None)
@@ -234,7 +190,6 @@ def molecularnet_build_prompts_from_indices(
     seed = int(molecularnet.get("seed", 42))
     weighted_edges = bool(molecularnet.get("weighted_edges", False))
 
-    # base prompt (optional)
     base_prompt = ""
     if prompt_path:
         prompts = m.load_prompts(prompt_path)
@@ -259,7 +214,6 @@ def molecularnet_build_prompts_from_indices(
 
         extra = m.row_extra(spec, row)
 
-        # few-shot optional; sample from SAME df being evaluated (match eval_mol.py)
         if shot > 0 and label_col:
             shot_examples = m.sample_shots_graph_from_df(
                 df=df,
@@ -286,13 +240,11 @@ def molecularnet_build_prompts_from_indices(
     out_df = pd.DataFrame(records)
     if len(out_df) == 0:
         return out_df
-
     out_df["__num_edges"] = out_df[input_column].map(
         lambda s: count_edges_in_prompt(standardize_prompt_edges(str(s)))
     ).astype(np.int32)
 
     return out_df
-
 
 def molecularnet_sample_prompts_by_edge_range(
     molecularnet: Dict[str, Any],
@@ -303,11 +255,6 @@ def molecularnet_sample_prompts_by_edge_range(
     seed: int = 42,
     require_label: bool = True,
 ) -> Tuple[pd.DataFrame, Tuple[int, int], Dict[str, Any]]:
-    """
-    One-stop helper for scoring/entropy:
-      1) sample row indices by an auto-chosen edge range
-      2) build prompts only for those indices
-    """
     indices, (chosen_min, chosen_max), stats = molecularnet_sample_indices_by_edge_range(
         molecularnet=molecularnet,
         sample_num=int(sample_num),
@@ -325,7 +272,6 @@ def molecularnet_sample_prompts_by_edge_range(
         indices=indices,
     )
 
-    # Keep size consistent (in rare cases, some indices may fail prompt build)
     if len(df_prompts) > int(sample_num):
         df_prompts = df_prompts.sample(n=int(sample_num), random_state=int(seed)).reset_index(drop=True)
     else:
@@ -343,21 +289,7 @@ def molecularnet_sample_indices_by_edge_range(
     seed: int = 42,
     require_label: bool = True,
 ) -> Tuple[List[int], Tuple[int, int], Dict[str, Any]]:
-    """
-    MolecularNet adaptation:
-      - Load the evaluation dataframe for the requested split (test/sample).
-      - For each row, build graph_text (smiles_to_graph_text) and count edges.
-      - Auto choose [min_edges, max_edges] via choose_edge_range().
-      - Filter indices within the chosen range and sample sample_num indices.
 
-    Returns:
-      (indices, (chosen_min, chosen_max), stats)
-
-    Notes:
-      - indices are row indices into the selected dataframe (same indexing as df.iloc[i]).
-      - If require_label=True, only keep rows whose label is usable (yes/no not None).
-        (For Tox21, it will use the aggregated label "__TOX21_TOXIC_ANY__".)
-    """
     m = _import_molecularnet_utils()
 
     root = molecularnet["root"]
@@ -405,7 +337,6 @@ def molecularnet_sample_indices_by_edge_range(
     if len(valid_indices) == 0:
         return [], (0, 0), {"reason": "no_valid_rows_after_graph_and_label_filter"}
 
-    # NEW: global edge stats on valid pool
     ec_arr = np.asarray(edge_counts, dtype=np.int32)
     global_stats = {
         "true_min_edges": int(ec_arr.min()),
@@ -451,9 +382,8 @@ def molecularnet_sample_indices_by_edge_range(
     }
     return [int(x) for x in chosen], (int(chosen_min), int(chosen_max)), stats
 
-# ============================================================
-# Graph-SST helpers (MUST match baselines/Graph-SST/evaluate.py)
-# ============================================================
+
+# Graph-SST
 
 def _graphsst_label2text(data_name: str) -> Dict[int, str]:
     if "Twitter" in data_name:
@@ -462,11 +392,7 @@ def _graphsst_label2text(data_name: str) -> Dict[int, str]:
         return {0: "negative", 1: "positive"}
     return {0: "very negative", 1: "negative", 2: "neutral", 3: "positive", 4: "very positive"}
 
-
 def _graphsst_split_indices(dataset, split: str) -> List[int]:
-    """
-    Same logic as evaluate.py:get_split_indices_from_supplement
-    """
     split = (split or "test").lower()
     if not hasattr(dataset, "supplement"):
         return list(range(len(dataset)))
@@ -500,11 +426,6 @@ def _graphsst_split_indices(dataset, split: str) -> List[int]:
 
 
 def _graphsst_get_node_texts(data, dataset=None, idx: Optional[int] = None) -> List[str]:
-    """
-    Same logic as evaluate.py:get_node_texts
-    Prefer dataset.supplement['sentence_tokens'][str(idx)] if available.
-    Fallback: node_0, node_1, ...
-    """
     num_nodes: Optional[int] = None
     if hasattr(data, "num_nodes") and data.num_nodes is not None:
         num_nodes = int(data.num_nodes)
@@ -537,10 +458,6 @@ def _graphsst_linearize_graph(
     node_texts: List[str],
     directed: bool = False,
 ) -> Tuple[str, str]:
-    """
-    Same logic as evaluate.py:linearize_graph
-    Returns (nodes_part, edges_part).
-    """
     n = len(node_texts)
     nodes_part = " ".join(
         [f"[{i}, {str(node_texts[i]).replace(chr(10), ' ')}]" for i in range(n)]
@@ -579,7 +496,6 @@ def _graphsst_linearize_graph(
     if directed:
         edges_part = " ".join([f"({u}->{v})" for u, v in edges])
     else:
-        # IMPORTANT: match evaluate.py formatting with comma+space
         edges_part = " ".join([f"({u}, {v})" for u, v in edges])
 
     if not edges_part:
@@ -632,9 +548,7 @@ def _graphsst_build_prompt(
         last_id=last_id,
     )
 
-# ============================================================
 # Unified loader
-# ============================================================
 
 def load_and_filter_samples(
     data_path: Optional[str],
@@ -646,14 +560,10 @@ def load_and_filter_samples(
     molecularnet: Optional[Dict[str, Any]] = None,
 ):
     """
-    Returns a DataFrame with at least: [input_column], plus helper cols:
-      - __idx (Graph-SST / MolecularNet)
-      - __num_edges
-
     Graph-SST prompt construction MUST match baselines/Graph-SST/evaluate.py.
     MolecularNet prompt construction reuses baselines/molecularNet/utils.py.
     """
-    # -------- MolecularNet family --------
+    # -------- MolecularNet --------
     if molecularnet is not None:
         df = _molecularnet_load_and_build_prompts(molecularnet=molecularnet, input_column=input_column)
         if df is None or len(df) == 0:
@@ -671,15 +581,9 @@ def load_and_filter_samples(
             return df_filt.reset_index(drop=True)
         return df_filt.sample(n=n_req, random_state=42).reset_index(drop=True)
 
-    # -------- Graph-SST family --------
+    # -------- Graph-SST --------
     if graphsst is not None:
-        try:
-            from dig.xgraph.dataset import SentiGraphDataset
-        except Exception as e:
-            raise ImportError(
-                "Graph-SST requires DIG (`dig.xgraph`). Please ensure it is installed. "
-                f"Original error: {e}"
-            )
+        from dig.xgraph.dataset import SentiGraphDataset
 
         root = graphsst["root"]
         name = graphsst["name"]
@@ -723,7 +627,7 @@ def load_and_filter_samples(
 
         return df_filt.sample(n=n_req, random_state=42).reset_index(drop=True)
 
-    # -------- GraphWiz / jsonl --------
+    # -------- GraphWiz  --------
     if not data_path or not os.path.exists(data_path):
         print(f"Warning: data file not found: {data_path}")
         return None
@@ -751,7 +655,6 @@ def load_and_filter_samples(
 
     return df_filt.sample(n=n_req, random_state=42).reset_index(drop=True)
 
-
 def choose_edge_range(
     edge_counts: np.ndarray,
     sample_num: int,
@@ -759,14 +662,7 @@ def choose_edge_range(
     hard_max_edges: Optional[int] = None,
 ) -> Tuple[Optional[int], Optional[int], Dict[str, Any]]:
     """
-    Unified edge-range chooser for scoring/plot/entropy.
-
-    Strategy:
-      1) Optionally cap edges by hard_max_edges (to control compute).
-      2) Prefer samples with edges >= preferred_min_edges if enough to cover sample_num:
-         choose a compact window centered around the median.
-      3) Otherwise fallback (Graph-SST common): include the TOP edge-count samples until >= sample_num
-         (i.e., pick threshold as the k-th largest edge count).
+    Unified edge-range choose.
     """
     ec = np.asarray(edge_counts, dtype=np.int32)
     if ec.size == 0:
@@ -787,7 +683,6 @@ def choose_edge_range(
     v_all = np.sort(ec_cap.astype(np.int32))
     n_all = int(v_all.size)
 
-    # helper: median-centered compact window (used only when preferred_min is feasible)
     def _pick_median_window(vals: np.ndarray, k_: int) -> Tuple[int, int, Dict[str, Any]]:
         v = np.sort(vals.astype(np.int32))
         n = int(v.size)
