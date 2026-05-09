@@ -10,7 +10,7 @@
   <img src="SLASH.png" width="85%" alt="SLASH overview"/>
 </p>
 
-Official PyTorch implementation of **"SLASH the Sink: Sharpening Structural Attention Inside LLMs"**, accepted at **ICML 2026**.
+Implementation of **"SLASH the Sink: Sharpening Structural Attention Inside LLMs"**, accepted at **ICML 2026**.
 
 ---
 
