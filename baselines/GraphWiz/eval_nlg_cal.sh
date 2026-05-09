@@ -7,12 +7,8 @@ OUTPUT_DIR=./calibration_Results1.0
 TASKS=(cycle connectivity hamilton substructure bipartite flow shortest topology triangle)
 
 MODELS=(
-  GraphWiz/LLaMA2-7B
-  GraphWiz/Mistral-7B
-  GraphWiz/LLaMA2-7B-RFT
   GraphWiz/LLaMA2-7B-DPO
   GraphWiz/Mistral-7B-RFT
-  GraphWiz/LLaMA2-13B-RFT
   GraphWiz/LLaMA2-13B-DPO
 )
 
