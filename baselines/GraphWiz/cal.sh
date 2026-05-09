@@ -1,4 +1,4 @@
-CUDA=0,1,2
+CUDA=0,1
 BASE_BATCH_SIZE=1
 DEFAULT_MAX_TOKENS=10
 OUTPUT_DIR=./calibration_Results1.0
@@ -26,7 +26,7 @@ MODELS=(
 GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
 EDGE_AGG_OPTIONS=(False)
 
-SELECT_ROOT="SLASH/outputs/final_select/select0/GraphWiz"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/GraphWiz"
 
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"

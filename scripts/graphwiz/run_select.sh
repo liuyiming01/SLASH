@@ -1,28 +1,18 @@
 REPO_ROOT="SLASH/"
 export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
-export CUDA_VISIBLE_DEVICES="6,7"
+export CUDA_VISIBLE_DEVICES="0"
 
 TASK_NAME="GraphWiz"
 DATA_DIR="GraphWiz/GraphInstruct-Test"
-OUT_DIR="${REPO_ROOT}/outputs/final_select/select_head/${TASK_NAME}"
+OUT_DIR="${REPO_ROOT}/outputs/final_select/select_layer/${TASK_NAME}"
 
 MODELS=(
-  YuyanLiu/merged_MolecularGPT
   meta-llama/Meta-Llama-3.1-8B-Instruct
   Qwen/Qwen3-8B
-  meta-llama/Llama-3.2-3B-Instruct
-  Qwen/Qwen3-4B
-  Qwen/Qwen3-14B
-  meta-llama/Llama-2-7b-chat-hf
 )
 MODELS_GraphWiz=(
-  GraphWiz/LLaMA2-7B
-  GraphWiz/Mistral-7B
-  GraphWiz/LLaMA2-13B
   GraphWiz/LLaMA2-7B-DPO
   GraphWiz/LLaMA2-13B-DPO
-  GraphWiz/LLaMA2-7B-RFT
-  GraphWiz/LLaMA2-13B-RFT
   GraphWiz/Mistral-7B-RFT
 )
 

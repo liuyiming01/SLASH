@@ -1,4 +1,4 @@
-CUDA=2,4
+CUDA=0,1
 BATCH_SIZE=1
 MAX_NEW_TOKENS=10
 LIMIT=400
@@ -21,7 +21,7 @@ MODELS=(
   Qwen/Qwen3-14B
 )
 
-SELECT_ROOT="SLASH/outputs/final_select/select1.2.1/MolecularNet"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/MolecularNet"
 GAMMA_VALUES=(0.5 0.4 0.6 0.8 0.9 0.7 0.3 0.2 0.1)
 
 EDGE_AGG_OPTIONS=(False)

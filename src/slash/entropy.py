@@ -12,9 +12,8 @@ from .utils import (
     count_edges_in_prompt,
     standardize_prompt_edges,
     select_layers_by_top_fraction,
-    select_layers_auto_otsu,
-    select_layers_middle_peak_entropy,
-    select_layers_middle_peak_entropy_backpad,
+    select_layers_otsu,
+    select_layers_peak_auto_entropy,
 )
 from .datasets import (
     load_and_filter_samples,
@@ -341,8 +340,8 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
     valid_mask = score_cnt > 0
 
     json_top = os.path.join(out_dir_mode, f"{task_name}_selected_layers_top_{int(top_fraction * 100)}_entropy.json")
+    json_otsu = os.path.join(out_dir_mode, f"{task_name}_selected_layers_otsu_entropy.json")
     json_auto = os.path.join(out_dir_mode, f"{task_name}_selected_layers_auto_entropy.json")
-    json_mid = os.path.join(out_dir_mode, f"{task_name}_selected_layers_middle_peak_entropy.json")
 
     select_layers_by_top_fraction(
         scores=avg_entropy,
@@ -352,16 +351,15 @@ def process_task(task_name: str, cfg: dict, model, tokenizer):
         top_fraction=top_fraction,
         json_path=json_top,
     )
-    mid_sel, mid_info = select_layers_middle_peak_entropy_backpad(
+    select_layers_otsu(
         scores=avg_entropy,
         valid_mask=valid_mask,
         score_mode=score_mode,
         num_heads=num_heads,
-        json_path=json_mid,
+        json_path=json_otsu,
         fallback_top_fraction=top_fraction,
     )
-    print(f"[{task_name}] Middle-peak selection info: {mid_info}")
-    select_layers_auto_otsu(
+    mid_sel, mid_info = select_layers_peak_auto_entropy(
         scores=avg_entropy,
         valid_mask=valid_mask,
         score_mode=score_mode,

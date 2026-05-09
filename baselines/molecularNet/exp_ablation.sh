@@ -1,4 +1,4 @@
-CUDA=0,1
+CUDA=0
 BATCH_SIZE=4
 MAX_NEW_TOKENS=10
 LIMIT=400
@@ -21,13 +21,12 @@ MODELS=(
 )
 # TASKS=(BACE BBBP ClinTox HIV Tox21)
 TASKS=(Tox21)
-# GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
 GAMMA_VALUES=(0.6)
 
 EDGE_AGG_OPTIONS=(False)
 SPLIT_OPTIONS=(sample)
 
-SELECT_ROOT="SLASH/outputs/final_select/select1.2.1/MolecularNet"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/MolecularNet"
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
   SELECT_DIR="${SELECT_ROOT}/${MODEL_NAME}/select_results"

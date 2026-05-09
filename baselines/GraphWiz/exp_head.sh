@@ -1,4 +1,4 @@
-CUDA=2
+CUDA=0
 BASE_BATCH_SIZE=2
 DEFAULT_MAX_TOKENS=10
 OUTPUT_DIR=./Results_other/head_exp
@@ -20,10 +20,9 @@ DEFAULT_MAX_TOKENS3=40
 
 MODELS=(
   meta-llama/Meta-Llama-3.1-8B-Instruct
-  Qwen/Qwen3-8B
+  # Qwen/Qwen3-8B
 )
 
-# GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
 GAMMA_VALUES=(0.7)
 EDGE_AGG_OPTIONS=(False)
 

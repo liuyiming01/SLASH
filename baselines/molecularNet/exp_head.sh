@@ -1,4 +1,4 @@
-CUDA=2
+CUDA=0
 BATCH_SIZE=4
 MAX_NEW_TOKENS=10
 LIMIT=400
@@ -12,16 +12,15 @@ DATA_DIR="ChemLLMBench/data/property_prediction"
 PROMPT_PATH="./prompt/property_prediction_graph_prompt.txt"
 
 MODELS=(
-  # meta-llama/Meta-Llama-3.1-8B-Instruct
-  Qwen/Qwen3-8B
+  meta-llama/Meta-Llama-3.1-8B-Instruct
+  # Qwen/Qwen3-8B
   # meta-llama/Llama-3.2-3B-Instruct
   # YuyanLiu/merged_MolecularGPT
   # Qwen/Qwen3-4B
   # Qwen/Qwen3-14B
 )
-# TASKS=(BACE BBBP ClinTox HIV Tox21)
+
 TASKS=(Tox21)
-# GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
 GAMMA_VALUES=(0.1)
 
 EDGE_AGG_OPTIONS=(False)

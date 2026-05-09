@@ -17,10 +17,6 @@ SIM_METRIC="concentration"
 MODELS=(
   meta-llama/Meta-Llama-3.1-8B-Instruct
   Qwen/Qwen3-8B
-  YuyanLiu/merged_MolecularGPT
-  meta-llama/Llama-3.2-3B-Instruct
-  Qwen/Qwen3-4B
-  Qwen/Qwen3-14B
 )
 
 MN_TASKS=(

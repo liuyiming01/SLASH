@@ -22,7 +22,6 @@ click==8.2.1
 cloudpickle==3.1.1
 comm==0.2.2
 commentjson==0.9.0
-conda-pack @ file:///home/conda/feedstock_root/build_artifacts/conda-pack_1734292804024/work
 contourpy==1.3.1
 copernicusmarine==2.2.2
 cycler==0.12.1

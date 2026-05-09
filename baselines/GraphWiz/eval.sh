@@ -1,4 +1,4 @@
-CUDA=3,7
+CUDA=0,1
 BASE_BATCH_SIZE=4
 DEFAULT_MAX_TOKENS=10
 OUTPUT_DIR=./Results
@@ -27,7 +27,7 @@ MODELS=(
 GAMMA_VALUES=(0.6)
 EDGE_AGG_OPTIONS=(False)
 
-SELECT_ROOT="SLASH/outputs/final_select/select0/GraphWiz"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/GraphWiz"
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
 

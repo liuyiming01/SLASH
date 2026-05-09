@@ -26,11 +26,10 @@ MODELS=(
   meta-llama/Llama-2-7b-chat-hf
 )
 
-# GAMMA_VALUES=(0.9 0.8 0.7 0.6 0.5 0.4 0.3 0.2 0.1)
 GAMMA_VALUES=(0.7)
 EDGE_AGG_OPTIONS=(True False)
 
-SELECT_ROOT="SLASH/outputs/final_select/select0/GraphWiz"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/GraphWiz"
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
 

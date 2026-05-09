@@ -12,7 +12,7 @@ MODELS=(
 GAMMA_VALUES=(0.9)
 
 
-SELECT_ROOT="SLASH/outputs/final_select/select0/GraphWiz"
+SELECT_ROOT="SLASH/outputs/final_select/select_layer/GraphWiz"
 for MODEL_PATH in "${MODELS[@]}"; do
   MODEL_NAME="$(basename "$MODEL_PATH")"
 
