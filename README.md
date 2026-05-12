@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://proceedings.mlr.press/"><img src="https://img.shields.io/badge/ICML-2026-blue.svg" alt="ICML 2026"></a>
+  <a href="https://arxiv.org/abs/2605.10503"><img src="https://img.shields.io/badge/arXiv-2605.10503-b31b1b.svg" alt="arXiv"></a>
   <a href="https://github.com/liuyiming01/SLASH"><img src="https://img.shields.io/badge/GitHub-SLASH-black.svg" alt="GitHub"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
 </p>
